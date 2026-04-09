@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MPL Pro - Maker</title>
+    <style>
+        :root { --bg: #f5f7fa; --box: #ffffff; --text: #333; --accent: #4361ee; --accent-hover: #3a0ca3; }
+        body { font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: var(--bg); color: var(--text); padding: 20px; }
+        .card { background: var(--box); border-radius: 12px; padding: 25px; max-width: 800px; margin: 0 auto 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+        .hidden { display: none !important; }
+        input, select, button { padding: 12px; margin-bottom: 10px; border-radius: 6px; border: 1px solid #ddd; width: 100%; box-sizing: border-box; }
+        button { background: var(--accent); color: white; border: none; cursor: pointer; font-weight: bold; }
+        .btn-outline { background: transparent; color: var(--accent); border: 2px solid var(--accent); }
+        .btn-success { background: #2a9d8f; }
+        .search-results { display: flex; flex-direction: column; gap: 8px; max-height: 250px; overflow-y: auto; margin-top:10px; }
+        .search-item { display: flex; gap: 10px; align-items: center; padding: 10px; background: #fff; border: 1px solid #eee; border-radius: 8px; cursor: pointer; }
+        .search-item:hover { background: #f8fafc; border-color: var(--accent); }
+        .search-item img { width: 60px; height: 45px; object-fit: cover; border-radius: 4px; }
+        .header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 15px; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <div class="header-bar">
+            <h2 style="margin:0;">🛠 클라우드 제작기</h2>
+            <button onclick="window.location.href='/'" class="btn-outline" style="width: auto;">보관함으로 돌아가기</button>
+        </div>
+
+        <h4>1. 미디어 검색 및 추출</h4>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <select id="makerSearchPlatform" style="width: 120px; margin-bottom: 0;">
+                <option value="youtube">YouTube</option>
+                <option value="soundcloud">SoundCloud</option>
+            </select>
+            <select id="makerMediaType" style="width: 130px; margin-bottom: 0;">
+                <option value="audio">🎵 음악</option>
+                <option value="video">🎬 영상</option>
+            </select>
+            <input type="text" id="makerSearchQuery" placeholder="검색어 입력" style="flex: 1; margin-bottom: 0;">
+            <button onclick="doMakerSearch()" style="width: 80px; margin-bottom: 0;">검색</button>
+        </div>
+        <div id="searchResults" class="search-results"></div>
+        <div id="makerExtractStatus" style="color: blue; font-weight: bold; margin-top:10px;"></div>
+
+        <div id="previewContainer" class="hidden" style="margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 10px;">
+            <h4>✅ 미리보기</h4>
+            <div style="display: flex; gap:10px; align-items:center;">
+                <img id="previewThumb" src="" style="width:80px; height:80px; object-fit:cover; border-radius:8px;">
+                <div style="flex-grow:1;">
+                    <video id="previewVideo" class="hidden" controls style="width: 100%; max-height: 150px; background: #000;"></video>
+                    <audio id="previewAudio" controls style="width: 100%;"></audio>
+                </div>
+            </div>
+        </div>
+
+        <h4 style="margin-top:25px;">2. 가사 검색 (syncedlyrics)</h4>
+        <div style="display: flex; gap: 10px;">
+            <input type="text" id="makerLrcQuery" placeholder="가사 검색어">
+            <button onclick="doMakerLyrics()" style="width: 100px;" class="btn-outline">검색</button>
+        </div>
+        <textarea id="lyricBox" style="width:100%; height:150px; font-family:monospace; margin-top:10px;" placeholder="[00:00.000] 가사내용"></textarea>
+
+        <h4 style="margin-top:25px;">3. 패키징 전송</h4>
+        <button onclick="exportMaker('cloud')" class="btn-success">내 보관함으로 즉시 전송</button>
+        <button onclick="exportMaker('download')" class="btn-outline" style="margin-top: 5px;">PC로 다운로드 (.mpl)</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script>
+        const API_URL = window.location.origin;
+        let MAKER_TMP_FILE = "", MAKER_TMP_THUMB = "", MAKER_META = {};
+
+        async function doMakerSearch() {
+            const q = document.getElementById('makerSearchQuery').value;
+            const p = document.getElementById('makerSearchPlatform').value;
+            if(!q) return;
+            document.getElementById('searchResults').innerHTML = "검색 중...";
+            const r = await fetch(API_URL + '/api/maker/search', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({platform:p, query:q})});
+            const d = await r.json();
+            document.getElementById('searchResults').innerHTML = d.results.map(i => `
+                <div class="search-item" onclick="doMakerExtract('${i.url}')">
+                    <img src="${i.thumbnail}">
+                    <div>${i.title}</div>
+                </div>
+            `).join('');
+        }
+
+        async function doMakerExtract(url) {
+            const mediaType = document.getElementById('makerMediaType').value;
+            document.getElementById('makerExtractStatus').innerText = "추출 중...";
+            const r = await fetch(API_URL + '/api/maker/extract', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url, type: mediaType})});
+            const d = await r.json();
+            if(d.success) {
+                MAKER_TMP_FILE = d.file; MAKER_TMP_THUMB = d.thumb; 
+                MAKER_META = { title: d.title, artist: d.artist, ext: d.ext, type: mediaType };
+                document.getElementById('makerExtractStatus').innerText = "✅ 성공!";
+                document.getElementById('makerLrcQuery').value = d.title;
+                document.getElementById('previewContainer').classList.remove('hidden');
+                document.getElementById('previewThumb').src = `${API_URL}/api/maker/temp/${d.thumb}`;
+                const aud = document.getElementById('previewAudio'); const vid = document.getElementById('previewVideo');
+                if (mediaType === 'video') { aud.classList.add('hidden'); vid.classList.remove('hidden'); vid.src = `${API_URL}/api/maker/temp/${d.file}`; }
+                else { vid.classList.add('hidden'); aud.classList.remove('hidden'); aud.src = `${API_URL}/api/maker/temp/${d.file}`; }
+            }
+        }
+
+        async function doMakerLyrics() {
+            const q = document.getElementById('makerLrcQuery').value;
+            const r = await fetch(API_URL + '/api/maker/lyrics', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({query:q})});
+            const d = await r.json(); if(d.success) document.getElementById('lyricBox').value = d.lrc;
+        }
+
+        async function exportMaker(mode) {
+             const fn = `${MAKER_META.title}.mpl`;
+             
+             if(mode==='download') {
+                 document.getElementById('makerExtractStatus').innerText = "📦 패키징 중...";
+                 const zip = new JSZip();
+                 zip.file(`media.${MAKER_META.ext}`, await (await fetch(`${API_URL}/api/maker/temp/${MAKER_TMP_FILE}`)).blob());
+                 if(MAKER_TMP_THUMB) zip.file(`thumb.jpg`, await (await fetch(`${API_URL}/api/maker/temp/${MAKER_TMP_THUMB}`)).blob());
+                 zip.file("lyrics.lrc", document.getElementById('lyricBox').value);
+                 zip.file("metadata.json", JSON.stringify(MAKER_META));
+
+                 const blob = await zip.generateAsync({type:"blob"});
+                 const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=fn; a.click();
+                 document.getElementById('makerExtractStatus').innerText = "✅ 다운로드 완료";
+             } else {
+                 document.getElementById('makerExtractStatus').innerText = "☁️ 클라우드 저장 중...";
+                 const res = await fetch(API_URL + '/api/maker/save_cloud', {
+                     method: 'POST',
+                     headers: {'Content-Type': 'application/json'},
+                     body: JSON.stringify({
+                         id: localStorage.getItem('MPL_ID'),
+                         meta: MAKER_META,
+                         lyrics: document.getElementById('lyricBox').value,
+                         tmpFile: MAKER_TMP_FILE,
+                         tmpThumb: MAKER_TMP_THUMB
+                     })
+                 });
+                 const d = await res.json();
+                 if(d.success) {
+                     alert("✅ 클라우드 저장 완료!");
+                     location.href='/';
+                 } else {
+                     alert("❌ 저장 실패: " + d.error);
+                 }
+             }
+        }
+    </script>
+</body>
+</html>

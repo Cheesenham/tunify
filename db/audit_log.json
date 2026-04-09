@@ -1,0 +1,20 @@
+[
+    {
+        "time": "2026. 4. 7. 오후 11:16:21",
+        "user": "admin",
+        "action": "LOGIN_FAIL",
+        "detail": "로그인 실패 (비밀번호 불일치 또는 없는 아이디)"
+    },
+    {
+        "time": "2026. 4. 7. 오후 11:16:22",
+        "user": "admin",
+        "action": "LOGIN_FAIL",
+        "detail": "로그인 실패 (비밀번호 불일치 또는 없는 아이디)"
+    },
+    {
+        "time": "2026. 4. 7. 오후 11:16:22",
+        "user": "admin",
+        "action": "LOGIN_FAIL",
+        "detail": "로그인 실패 (비밀번호 불일치 또는 없는 아이디)"
+    }
+]

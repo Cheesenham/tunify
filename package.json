@@ -1,0 +1,12 @@
+{
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "express-fileupload": "^1.5.2",
+    "fs": "^0.0.1-security",
+    "path": "^0.12.7",
+    "play-dl": "^1.9.7",
+    "scdl-core": "^1.1.0",
+    "soundcloud-scraper": "^5.0.3"
+  }
+}
