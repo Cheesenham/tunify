@@ -1,2 +1,13 @@
 .vercel
 .env*.local
+.vscode/
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+mpl_storage/
+db/*.json
+!db/users.json.example
+*.log
+.DS_Store

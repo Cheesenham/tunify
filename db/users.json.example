@@ -1,0 +1,6 @@
+{
+  "admin": {
+    "pw": "admin123",
+    "role": "admin"
+  }
+}
