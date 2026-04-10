@@ -1,4 +1,3 @@
 flask
 yt-dlp
 syncedlyrics
-jszip
