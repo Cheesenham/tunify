@@ -7,6 +7,8 @@ from werkzeug.utils import secure_filename
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import yt_dlp
+import urllib.request
+import urllib.parse
 
 app = Flask(__name__, static_folder='public')
 CORS(app)
