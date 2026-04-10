@@ -1,7 +1,10 @@
-[
-    {
-        "id": "admin",
-        "pw": "1234",
-        "role": "admin"
-    }
-]
+{
+  "admin": {
+    "pw": "1234",
+    "role": "admin"
+  },
+  "testuser": {
+    "pw": "1234",
+    "role": "user"
+  }
+}

@@ -38,6 +38,7 @@ class MPLManagerGUI:
         ttk.Button(btn_frame, text="Check Status", command=self.check_status).pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="Check FFmpeg", command=self.check_ffmpeg_remote).pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="Pkill Python/Node", command=self.pkill_all).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="Repair DB (Admin Fix)", command=self.repair_db).pack(side=tk.LEFT, padx=5)
 
         # Console
         tk.Label(root, text="Log Console:", bg="#1a1a1a", fg="#888").pack(anchor="w", padx=30)
@@ -78,21 +79,38 @@ class MPLManagerGUI:
             "public/player.html": "player.html"
         }
 
-        # 1. Update Core Components (via Port 4000 OTA)
-        self.log("Step 1: Updating System Cores (4000)...")
+        # 1. Update Core Components (Try Port 4000 First, then Port 3000 for Cloudflare)
+        self.log("Step 1: Updating System Cores...")
+        cores_synced = False
         try:
             with open("server.py", "r", encoding="utf-8") as f: s_code = f.read()
             with open("public/index.html", "r", encoding="utf-8") as f: i_code = f.read()
             payload = {"serverPy": s_code, "indexHtml": i_code}
             data = json.dumps(payload).encode("utf-8")
-            req = urllib.request.Request(f"http://{ip}:4000/emergency-update", data=data, headers={"Content-Type":"application/json"})
-            urllib.request.urlopen(req, timeout=5)
-            self.log("✅ Cores Transmitted.")
+            
+            # Method A: Direct OTA (Port 4000)
+            try:
+                self.log("Trying Port 4000 (Local OTA)...")
+                req = urllib.request.Request(f"http://{ip}:4000/emergency-update", data=data, headers={"Content-Type":"application/json"})
+                urllib.request.urlopen(req, timeout=3)
+                self.log("✅ Cores Transmitted via 4000.")
+                cores_synced = True
+            except:
+                self.log("Port 4000 failed/closed. Trying Port 3000 (Cloudflare/API)...")
+            
+            # Method B: API OTA (Port 3000) - Works through Tunnels
+            if not cores_synced:
+                base_url = ip if ip.startswith('http') else f"http://{ip}:3000"
+                req = urllib.request.Request(f"{base_url}/api/system/emergency_update", data=data, headers={"Content-Type":"application/json"})
+                urllib.request.urlopen(req, timeout=10)
+                self.log("✅ Cores Transmitted via 3000 (Tunnel).")
+                cores_synced = True
+                
         except Exception as e:
-            self.log(f"⚠️ Core Sync Error (Maybe skipping): {e}")
+            self.log(f"⚠️ Core Sync Error: {e}")
 
         # 2. Update Assets (via Port 3000 API)
-        time.sleep(1)
+        time.sleep(4)
         self.log("Step 2: Force Syncing UI Assets (3000)...")
         for local_p, remote_n in files.items():
             if local_p == "server.py" or local_p == "ota_manager.py": continue
@@ -161,6 +179,25 @@ class MPLManagerGUI:
                 else: self.log(f"Error: {d.get('error')}")
             except Exception as e:
                 self.log(f"📡 Remote Shell Error: {e}")
+        threading.Thread(target=task).start()
+
+    def repair_db(self):
+        def task():
+            ip = self.get_ip()
+            self.log("Repairing Remote Database (users.json)...")
+            try:
+                users_data = {
+                    "admin": {"pw": "1234", "role": "admin"},
+                    "testuser": {"pw": "1234", "role": "user"}
+                }
+                content = json.dumps(users_data, indent=2)
+                cmd = f"mkdir -p db && echo '{content}' > db/users.json"
+                payload = {"cmd": cmd}
+                data = json.dumps(payload).encode("utf-8")
+                res = urllib.request.urlopen(urllib.request.Request(f"http://{ip}:3000/api/remote/shell", data=data, headers={"Content-Type":"application/json"}), timeout=10)
+                self.log("✅ Remote DB Repaired. Try login with admin/1234.")
+            except Exception as e:
+                self.log(f"❌ Repair failed: {e}")
         threading.Thread(target=task).start()
 
 if __name__ == "__main__":

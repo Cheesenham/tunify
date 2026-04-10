@@ -401,20 +401,48 @@
         }
 
         async function login() {
+            const btn = event?.target || document.querySelector('#loginSection button');
+            const originalText = btn.innerText;
+            
             let serverIP = document.getElementById('apiServer').value.trim();
             if (serverIP === '1211') { serverIP = 'https://reaches-pick-grow-open.trycloudflare.com'; }
             else if (serverIP && !serverIP.startsWith('http')) { serverIP = 'http://' + serverIP; }
-            API_URL = serverIP;
+            API_URL = serverIP || window.location.origin;
 
-            const v = document.getElementById('userId').value;
-            if (!v) return;
-            const r = await fetch(API_URL + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: v, pw: document.getElementById('userPw').value }) });
-            const res = await r.json();
-            if (res.success) {
-                localStorage.setItem('MPL_ROLE', res.role);
-                localStorage.setItem('MPL_ID', v);
-                localStorage.setItem('MPL_BASE_URL', API_URL);
-                showHub();
+            const v = document.getElementById('userId').value.trim();
+            const p = document.getElementById('userPw').value.trim();
+            if (!v) return alert("아이디를 입력해 주세요.");
+            
+            try {
+                btn.innerText = "접속 중...";
+                btn.disabled = true;
+                
+                const r = await fetch(API_URL + '/api/login', { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ id: v, pw: p }) 
+                });
+                
+                if (!r.ok) {
+                    const errText = await r.text();
+                    throw new Error(`서버 오류 (${r.status}): ${errText.substring(0, 50)}`);
+                }
+
+                const res = await r.json();
+                if (res.success) {
+                    localStorage.setItem('MPL_ROLE', res.role);
+                    localStorage.setItem('MPL_ID', v);
+                    localStorage.setItem('MPL_BASE_URL', API_URL);
+                    showHub();
+                } else {
+                    alert("⚠️ 로그인 실패: " + (res.msg || "이유를 알 수 없는 오류가 발생했습니다."));
+                }
+            } catch (err) {
+                console.error(err);
+                alert("📡 통신 에러: " + err.message + "\n\n서버 주소가 정확한지, 서버가 실행 중인지 확인해 주세요.");
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
             }
         }
 
