@@ -319,7 +319,7 @@
     </div>
 
     <script>
-        const API_URL = window.location.origin;
+        const API_URL = localStorage.getItem('MPL_BASE_URL') || window.location.origin;
         const uid = localStorage.getItem('MPL_ID');
         const params = new URLSearchParams(window.location.search);
         const singleFile = params.get('file');
