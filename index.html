@@ -238,7 +238,7 @@
 <body>
 
     <div id="loginSection" class="card">
-        <h2 style="text-align: center;">MPL Pro Cloud <span style="font-size: 0.8rem; color: #888;">v4.2</span></h2>
+        <h2 style="text-align: center;">MPL Pro Cloud <span style="font-size: 0.8rem; color: #888; cursor: pointer; text-decoration: underline;" onclick="showUpdates()">v1.4.107</span></h2>
         <div style="margin-bottom: 20px; font-size: 0.9rem; color: #666; text-align: center;">사용자 접속 정보를 입력하여 활성화하세요.
         </div>
         <input type="text" id="apiServer" placeholder="서버 IP 주소 (예: 192.168.0.x:3000)">
@@ -291,6 +291,24 @@
                 <button onclick="playCurrentPlaylist()" style="flex:1;">▶ 재생</button>
                 <button onclick="closePlDetail()" class="btn-outline" style="flex:1;">닫기</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Updates Modal -->
+    <div id="updatesModal" class="modal-overlay hidden" onclick="if(event.target===this)closeUpdates()">
+        <div class="modal">
+            <h3>🔄 업데이트 내역</h3>
+            <div id="updatesList" style="max-height: 50vh; overflow-y: auto;">
+                <div style="margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+                    <div style="font-weight: bold; color: var(--accent);">v1.4.107</div>
+                    <div style="font-size: 0.8rem; color: #888; margin-bottom: 5px;">2026-04-10 16:11:00 업데이트</div>
+                    <ul style="margin: 0; padding-left: 20px; font-size: 0.9rem;">
+                        <li>Vercel 클라우드 배포(cleanUrls) 라우팅 최적화 적용</li>
+                        <li>버전 정보 갱신 및 사이트 내 업데이트 내역(Changelog) 기능 추가</li>
+                    </ul>
+                </div>
+            </div>
+            <button onclick="closeUpdates()" class="btn-outline" style="margin-top:10px;">닫기</button>
         </div>
     </div>
 
@@ -490,6 +508,13 @@
             });
             await loadPlaylists();
             showPlaylistDetail(plName);
+        }
+
+        function showUpdates() {
+            document.getElementById('updatesModal').classList.remove('hidden');
+        }
+        function closeUpdates() {
+            document.getElementById('updatesModal').classList.add('hidden');
         }
     </script>
 </body>
