@@ -55,7 +55,7 @@
             
             document.getElementById('fileList').innerHTML = list.map(f => `
                 <div class="search-item">
-                    <div style="font-weight: bold; flex:1; cursor:pointer;" onclick="window.location.href='/player?file='+encodeURIComponent(f)">🎵 ${f}</div>
+                    <div style="font-weight: bold; flex:1; cursor:pointer;" onclick="window.location.href='/player?file=' + encodeURIComponent(`${f}`)">🎵 ${f}</div>
                     <button class="btn-outline btn-small" onclick="event.stopPropagation(); showAddToPlaylist('${f}')">📋+</button>
                     <button class="btn-danger btn-small" onclick="event.stopPropagation(); softDeleteFile('${f}')">삭제</button>
                 </div>
@@ -642,7 +642,7 @@
             
             document.getElementById('fileList').innerHTML = list.map(f => `
                 <div class="search-item">
-                    <div style="font-weight: bold; flex:1; cursor:pointer;" onclick="window.location.href='/player?file='+encodeURIComponent(f)">🎵 ${f}</div>
+                    <div style="font-weight: bold; flex:1; cursor:pointer;" onclick="window.location.href='/player?file=' + encodeURIComponent(`${f}`)">🎵 ${f}</div>
                     <button class="btn-outline btn-small" onclick="event.stopPropagation(); showAddToPlaylist('${f}')">📋+</button>
                     <button class="btn-danger btn-small" onclick="event.stopPropagation(); softDeleteFile('${f}')">삭제</button>
                 </div>

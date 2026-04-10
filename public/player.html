@@ -312,10 +312,17 @@
             <button class="ctrl-btn" id="repeatBtn" onclick="toggleRepeat()" title="반복"
                 style="display:none;">🔁</button>
         </div>
+
         <div class="time-row">
             <span id="timeCurr">00:00</span>
+            <div style="display:flex; gap:5px; align-items:center;">
+                <button onclick="adjustSync(-0.5)" style="background:none; border:1px solid #fff; color:#fff; border-radius:5px; cursor:pointer;" title="가사 빠르게">-0.5s</button>
+                <span id="syncStatus" style="font-size:0.7rem;">0.0s</span>
+                <button onclick="adjustSync(0.5)" style="background:none; border:1px solid #fff; color:#fff; border-radius:5px; cursor:pointer;" title="가사 느리게">+0.5s</button>
+            </div>
             <span id="timeTotal">00:00</span>
         </div>
+
     </div>
 
     <script>
@@ -326,6 +333,8 @@
         const playlistName = params.get('playlist');
 
         let PLAYER_CORE = null, LYRICS = [], COLOR_THIEF = new ColorThief();
+        let lyricOffset = 0;
+        function adjustSync(val) { lyricOffset += val; document.getElementById('syncStatus').innerText = (lyricOffset>0?'+':'')+lyricOffset.toFixed(1)+'s'; }
 
         // Playlist state
         let playlist = [];        // array of filenames
@@ -340,6 +349,20 @@
                 await loadPlaylist(playlistName);
             } else if (singleFile) {
                 // === Single File Mode ===
+                const r = await fetch(API_URL + `/api/files?id=${uid}`);
+                const d = await r.json();
+                playlist = d.files || [];
+                currentIndex = playlist.indexOf(singleFile);
+                if(currentIndex === -1) currentIndex = 0;
+                
+                document.getElementById('playlistToggle').classList.remove('hidden');
+                document.getElementById('shuffleBtn').style.display = '';
+                document.getElementById('prevBtn').style.display = '';
+                document.getElementById('nextBtn').style.display = '';
+                document.getElementById('repeatBtn').style.display = '';
+                
+                shuffledOrder = [...Array(playlist.length).keys()];
+                if (playlist.length > 0) renderTrackList();
                 await loadTrack(singleFile);
             } else {
                 location.href = '/';
@@ -401,7 +424,7 @@
 
             if (PLAYER_CORE) { PLAYER_CORE.pause(); PLAYER_CORE.src = ''; }
 
-            const r = await fetch(API_URL + `/api/download/${uid}/${fileName}`);
+            const r = await fetch(API_URL + `/api/download/${uid}/${encodeURIComponent(fileName)}`);
             const zip = await JSZip.loadAsync(await r.blob());
 
             let meta, lx = "", mF, tF;
@@ -530,7 +553,7 @@
         // ===== Render Loop =====
         function render() {
             if (PLAYER_CORE && !PLAYER_CORE.paused && PLAYER_CORE.duration) {
-                const ms = PLAYER_CORE.currentTime * 1000;
+                const ms = (PLAYER_CORE.currentTime - lyricOffset) * 1000;
                 document.getElementById('progressBar').style.width = (PLAYER_CORE.currentTime / PLAYER_CORE.duration) * 100 + "%";
                 document.getElementById('timeCurr').innerText = fmt(PLAYER_CORE.currentTime);
                 document.getElementById('timeTotal').innerText = fmt(PLAYER_CORE.duration);
