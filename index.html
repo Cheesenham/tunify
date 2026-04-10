@@ -5,7 +5,64 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MPL Pro - Home</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/color-thief/2.3.0/color-thief.umd.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/color-thief/2.3.0/color-thief.umd.js">
+        async function adminManageAccount(method) {
+            const id = method === 'POST' ? document.getElementById('newAccId').value : document.getElementById('delAccId').value;
+            const pw = document.getElementById('newAccPw').value;
+            if(!id) return alert("아이디를 입력하세요");
+            
+            const r = await fetch(API_URL + '/api/admin/users', {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, pw })
+            });
+            const d = await r.json();
+            if(d.success) alert("작업이 완료되었습니다!");
+            else alert("작업 실패");
+        }
+
+        async function softDeleteFile(f) {
+            if(!confirm(`'${f}' 창고에서 삭제하시겠습니까?\n(7일 뒤 서버에서 완전히 자동 삭제됩니다.)`)) return;
+            const r = await fetch(API_URL + '/api/delete_file', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: localStorage.getItem('MPL_ID'), filename: f })
+            });
+            alert((await r.json()).msg);
+            loadFiles();
+        }
+
+        let allLoadedFiles = [];
+        let currentTabFilter = 'all';
+
+        function filterFiles(type) {
+            currentTabFilter = type;
+            document.getElementById('tabAll').style.background = type === 'all' ? 'var(--accent)' : 'transparent';
+            document.getElementById('tabAll').style.color = type === 'all' ? 'white' : 'var(--accent)';
+            document.getElementById('tabAudio').style.background = type === 'audio' ? 'var(--accent)' : 'transparent';
+            document.getElementById('tabAudio').style.color = type === 'audio' ? 'white' : 'var(--accent)';
+            document.getElementById('tabVideo').style.background = type === 'video' ? 'var(--accent)' : 'transparent';
+            document.getElementById('tabVideo').style.color = type === 'video' ? 'white' : 'var(--accent)';
+            document.getElementById('storageTitle').innerText = type === 'video' ? '🎬 동영상 보관함' : (type === 'audio' ? '🎧 음악 보관함' : '🎵 내 보관함');
+            renderFiles();
+        }
+
+        function renderFiles() {
+            let list = allLoadedFiles;
+            // 임시 분리 로직: 파일명이나 메타데이터에 video가 포함되면 동영상
+            if(currentTabFilter === 'audio') list = list.filter(f => !f.toLowerCase().includes('video') && !f.toLowerCase().includes('mp4'));
+            if(currentTabFilter === 'video') list = list.filter(f => f.toLowerCase().includes('video') || f.toLowerCase().includes('mp4'));
+            
+            document.getElementById('fileList').innerHTML = list.map(f => `
+                <div class="search-item">
+                    <div style="font-weight: bold; flex:1; cursor:pointer;" onclick="window.location.href='/player?file='+encodeURIComponent(f)">🎵 ${f}</div>
+                    <button class="btn-outline btn-small" onclick="event.stopPropagation(); showAddToPlaylist('${f}')">📋+</button>
+                    <button class="btn-danger btn-small" onclick="event.stopPropagation(); softDeleteFile('${f}')">삭제</button>
+                </div>
+            `).join('');
+        }
+
+    </script>
     <style>
         :root {
             --bg: #f5f7fa;
@@ -256,9 +313,16 @@
             </div>
         </div>
 
+        
         <div class="section-title">
-            <h3>🎵 내 보관함</h3>
+            <h3 id="storageTitle">🎵 내 보관함</h3>
         </div>
+        <div style="display:flex; gap:10px; margin-bottom:10px;">
+             <button id="tabAll" class="btn-outline" style="background:var(--accent); color:white;" onclick="filterFiles('all')">전체</button>
+             <button id="tabAudio" class="btn-outline" onclick="filterFiles('audio')">음악</button>
+             <button id="tabVideo" class="btn-outline" onclick="filterFiles('video')">동영상</button>
+        </div>
+
         <div id="fileList"></div>
         <button class="btn-success" onclick="document.getElementById('uploadInput').click()" style="margin-top: 15px;">➕
             파일 업로드 (.mpl)</button>
@@ -271,6 +335,19 @@
             <button onclick="createPlaylist()" class="btn-outline btn-small">➕ 새 플레이리스트</button>
         </div>
         <div id="playlistList"></div>
+    </div>
+
+    <div id="adminPanel" class="card hidden" style="border: 2px solid #3a0ca3; background: #eef2ff; margin-top: 20px;">
+        <h3>👑 시스템 관리자 패널</h3>
+        <div style="display:flex; gap:10px;">
+            <input type="text" id="newAccId" placeholder="새 아이디">
+            <input type="password" id="newAccPw" placeholder="새 비밀번호">
+            <button onclick="adminManageAccount('POST')" class="btn-success" style="width:150px;">생성 / 덮어쓰기</button>
+        </div>
+        <div style="display:flex; gap:10px; margin-top:10px;">
+            <input type="text" id="delAccId" placeholder="삭제할 아이디">
+            <button onclick="adminManageAccount('DELETE')" class="btn-danger" style="width:150px;">계정 영구삭제</button>
+        </div>
     </div>
 
     <!-- Add to Playlist Modal -->
@@ -346,6 +423,7 @@
             document.getElementById('hubSection').classList.remove('hidden');
             document.getElementById('playlistSection').classList.remove('hidden');
             document.getElementById('userName').innerText = localStorage.getItem('MPL_ID');
+            if(localStorage.getItem('MPL_ROLE') === 'admin') document.getElementById('adminPanel').classList.remove('hidden');
             loadFiles();
             loadPlaylists();
         }
@@ -356,13 +434,8 @@
         async function loadFiles() {
             const r = await fetch(API_URL + `/api/files?id=${localStorage.getItem('MPL_ID')}`);
             const d = await r.json();
-            document.getElementById('fileList').innerHTML = d.files.map(f => `
-                <div class="search-item">
-                    <div style="font-weight: bold; flex:1; cursor:pointer;" onclick="window.location.href='/player?file=${f}'">🎵 ${f}</div>
-                    <button class="btn-outline btn-small" onclick="event.stopPropagation(); showAddToPlaylist('${f}')">📋+</button>
-                    <button class="btn-outline btn-small" onclick="event.stopPropagation(); rename('${f}')">수정</button>
-                </div>
-             `).join('');
+            allLoadedFiles = d.files || [];
+            renderFiles();
         }
 
         async function rename(old) {
@@ -519,6 +592,63 @@
         function closeUpdates() {
             document.getElementById('updatesModal').classList.add('hidden');
         }
+    
+        async function adminManageAccount(method) {
+            const id = method === 'POST' ? document.getElementById('newAccId').value : document.getElementById('delAccId').value;
+            const pw = document.getElementById('newAccPw').value;
+            if(!id) return alert("아이디를 입력하세요");
+            
+            const r = await fetch(API_URL + '/api/admin/users', {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, pw })
+            });
+            const d = await r.json();
+            if(d.success) alert("작업이 완료되었습니다!");
+            else alert("작업 실패");
+        }
+
+        async function softDeleteFile(f) {
+            if(!confirm(`'${f}' 창고에서 삭제하시겠습니까?\n(7일 뒤 서버에서 완전히 자동 삭제됩니다.)`)) return;
+            const r = await fetch(API_URL + '/api/delete_file', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: localStorage.getItem('MPL_ID'), filename: f })
+            });
+            alert((await r.json()).msg);
+            loadFiles();
+        }
+
+        let allLoadedFiles = [];
+        let currentTabFilter = 'all';
+
+        function filterFiles(type) {
+            currentTabFilter = type;
+            document.getElementById('tabAll').style.background = type === 'all' ? 'var(--accent)' : 'transparent';
+            document.getElementById('tabAll').style.color = type === 'all' ? 'white' : 'var(--accent)';
+            document.getElementById('tabAudio').style.background = type === 'audio' ? 'var(--accent)' : 'transparent';
+            document.getElementById('tabAudio').style.color = type === 'audio' ? 'white' : 'var(--accent)';
+            document.getElementById('tabVideo').style.background = type === 'video' ? 'var(--accent)' : 'transparent';
+            document.getElementById('tabVideo').style.color = type === 'video' ? 'white' : 'var(--accent)';
+            document.getElementById('storageTitle').innerText = type === 'video' ? '🎬 동영상 보관함' : (type === 'audio' ? '🎧 음악 보관함' : '🎵 내 보관함');
+            renderFiles();
+        }
+
+        function renderFiles() {
+            let list = allLoadedFiles;
+            // 임시 분리 로직: 파일명이나 메타데이터에 video가 포함되면 동영상
+            if(currentTabFilter === 'audio') list = list.filter(f => !f.toLowerCase().includes('video') && !f.toLowerCase().includes('mp4'));
+            if(currentTabFilter === 'video') list = list.filter(f => f.toLowerCase().includes('video') || f.toLowerCase().includes('mp4'));
+            
+            document.getElementById('fileList').innerHTML = list.map(f => `
+                <div class="search-item">
+                    <div style="font-weight: bold; flex:1; cursor:pointer;" onclick="window.location.href='/player?file='+encodeURIComponent(f)">🎵 ${f}</div>
+                    <button class="btn-outline btn-small" onclick="event.stopPropagation(); showAddToPlaylist('${f}')">📋+</button>
+                    <button class="btn-danger btn-small" onclick="event.stopPropagation(); softDeleteFile('${f}')">삭제</button>
+                </div>
+            `).join('');
+        }
+
     </script>
 </body>
 
