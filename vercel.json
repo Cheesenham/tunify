@@ -1,21 +1,10 @@
 {
   "version": 2,
+  "cleanUrls": true,
   "rewrites": [
     {
       "source": "/api/(.*)",
       "destination": "/api/index.py"
-    },
-    {
-      "source": "/maker",
-      "destination": "/public/maker.html"
-    },
-    {
-      "source": "/player",
-      "destination": "/public/player.html"
-    },
-    {
-      "source": "/",
-      "destination": "/public/index.html"
     }
   ],
   "functions": {
