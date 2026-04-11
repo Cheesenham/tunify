@@ -3,53 +3,153 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MPL - Cloud Maker</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap" rel="stylesheet">
+    <title>MPL Pro - Advanced Maker</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Outfit', sans-serif; background: #0f172a; color: white; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-        .box { width: 100%; max-width: 500px; background: #1e293b; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        h1 { margin-bottom: 20px; text-align: center; color: #4cc9f0; }
-        input, select, button { width: 100%; padding: 15px; margin-bottom: 15px; border-radius: 10px; border: none; font-size: 1rem; }
-        input, select { background: #0f172a; color: white; }
-        button { background: #4361ee; color: white; font-weight: bold; cursor: pointer; }
-        .back { text-align: center; display: block; color: #888; text-decoration: none; margin-top: 10px; }
+        :root {
+            --primary: #4361ee;
+            --accent: #4cc9f0;
+            --bg: #0f172a;
+            --card: #1e293b;
+        }
+        * { margin:0; padding:0; box-sizing: border-box; }
+        body { font-family: 'Outfit', sans-serif; background: var(--bg); color: white; padding: 15px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        
+        /* Header */
+        .header { text-align: center; margin-bottom: 30px; padding-top: 20px; }
+        .header h1 { font-size: 2.5rem; font-weight: 800; }
+        .header h1 span { color: var(--accent); }
+
+        /* Search Section */
+        .search-box { background: var(--card); padding: 25px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); margin-bottom: 25px; }
+        .input-row { display: flex; gap: 10px; margin-bottom: 15px; }
+        input { flex: 1; padding: 15px; border-radius: 12px; border: none; background: #0f172a; color: white; }
+        select { padding: 10px; border-radius: 10px; background: #4361ee; color: white; border: none; }
+        .btn-search { padding: 0 25px; background: var(--accent); color: #000; font-weight: bold; border-radius: 12px; border: none; cursor: pointer; }
+
+        /* Results Section */
+        .results-grid { display: grid; grid-template-columns: 1fr; gap: 15px; }
+        .result-item { display: flex; background: rgba(255,255,255,0.05); padding: 15px; border-radius: 15px; gap: 15px; align-items: center; border: 1px solid rgba(255,255,255,0.05); }
+        .thumb { width: 120px; height: 68px; background-size: cover; background-position: center; border-radius: 10px; flex-shrink: 0; }
+        .info { flex: 1; overflow: hidden; }
+        .title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 5px; }
+        .uploader { font-size: 0.8rem; opacity: 0.6; }
+        .actions { display: flex; gap: 8px; }
+        .btn-mini { padding: 8px 12px; border-radius: 8px; border: none; font-size: 0.8rem; font-weight: bold; cursor: pointer; }
+        .btn-play { background: #4ade80; color: #000; }
+        .btn-dl { background: var(--primary); color: white; }
+        .btn-mpl { background: #f59e0b; color: white; }
+
+        .loading { text-align: center; padding: 50px; display: none; }
+        .back-link { display: block; text-align: center; margin-top: 30px; color: #888; text-decoration: none; }
     </style>
 </head>
 <body>
-    <div class="box">
-        <h1>Cloud <span>Maker</span></h1>
-        <select id="mode">
-            <option value="music">Music (MP3)</option>
-            <option value="video">Video (MP4)</option>
-        </select>
-        <input type="text" id="url" placeholder="YouTube URL">
-        <button id="btn" onclick="extract()">Start Extraction (GitHub Worker)</button>
-        <a href="/" class="back">← Back to Hub</a>
+
+    <div class="container">
+        <div class="header">
+            <h1>MPL <span>MAKER PRO</span></h1>
+            <p style="opacity: 0.5;">YouTube & SoundCloud Multi-Engine</p>
+        </div>
+
+        <div class="search-box">
+            <div class="input-row">
+                <select id="source">
+                    <option value="yt">YouTube</option>
+                    <option value="sc">SoundCloud</option>
+                </select>
+                <input type="text" id="query" placeholder="아티스트, 제목 검색..." onkeyup="if(event.key==='Enter') search()">
+                <button class="btn-search" onclick="search()">검색</button>
+            </div>
+            <p style="font-size: 0.8rem; opacity: 0.6; text-align: center;">직접 URL을 붙여넣어도 작동합니다.</p>
+        </div>
+
+        <div id="loading" class="loading">Searching Cloud...</div>
+        <div id="results" class="results-grid"></div>
+
+        <a href="/" class="back-link">← Back to Dashboard</a>
     </div>
 
     <script>
-        async function extract() {
-            const url = document.getElementById('url').value;
-            const mode = document.getElementById('mode').value;
-            if(!url) return alert("URL을 입력하세요");
-            
-            const btn = document.getElementById('btn');
-            btn.innerText = "GitHub Worker로 신호 전송 중...";
-            btn.disabled = true;
+        async function search() {
+            const q = document.getElementById('query').value.trim();
+            const src = document.getElementById('source').value;
+            if(!q) return;
 
+            // URL check
+            if(q.startsWith('http')) {
+                renderDirectItem(q);
+                return;
+            }
+
+            const loader = document.getElementById('loading');
+            const resBox = document.getElementById('results');
+            loader.style.display = 'block';
+            resBox.innerHTML = '';
+
+            try {
+                const r = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: q, source: src })
+                });
+                const d = await r.json();
+                
+                if(d.success) {
+                    d.results.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'result-item';
+                        div.innerHTML = `
+                            <div class="thumb" style="background-image: url('${item.thumbnail}')"></div>
+                            <div class="info">
+                                <div class="title">${item.title}</div>
+                                <div class="uploader">${item.uploader}</div>
+                            </div>
+                            <div class="actions">
+                                <button class="btn-mini btn-dl" onclick="extract('${item.url}', 'music')">MP3</button>
+                                <button class="btn-mini btn-mpl" onclick="extract('${item.url}', 'mpl')">.MPL</button>
+                                <button class="btn-mini" style="background:#555;" onclick="extract('${item.url}', 'video')">MP4</button>
+                            </div>
+                        `;
+                        resBox.appendChild(div);
+                    });
+                }
+            } catch (e) {
+                alert("Search failed: " + e.message);
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+
+        function renderDirectItem(url) {
+            const resBox = document.getElementById('results');
+            resBox.innerHTML = `
+                <div class="result-item" style="border-color: var(--accent);">
+                    <div class="info">
+                        <div class="title">직접 URL 감지됨</div>
+                        <div class="uploader">${url}</div>
+                    </div>
+                    <div class="actions">
+                        <button class="btn-mini btn-dl" onclick="extract('${url}', 'music')">MP3</button>
+                        <button class="btn-mini btn-mpl" onclick="extract('${url}', 'mpl')">.MPL</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function extract(url, mode) {
+            const uid = localStorage.getItem('MPL_USER') || 'admin';
             try {
                 const r = await fetch('/api/extract', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url, mode, uid: 'admin' })
+                    body: JSON.stringify({ url, mode, uid })
                 });
                 const res = await r.json();
                 alert(res.msg);
             } catch (e) {
-                alert("실패: " + e.message);
-            } finally {
-                btn.innerText = "Start Extraction (GitHub Worker)";
-                btn.disabled = false;
+                alert("Request error: " + e.message);
             }
         }
     </script>
