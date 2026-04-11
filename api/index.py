@@ -2,27 +2,33 @@ import os
 import json
 import yt_dlp
 import requests
-from flask import Flask, request, jsonify
-from flask_cors import CORS
 
-app = Flask(__name__)
-CORS(app)
-
-# GitHub Settings (for extraction trigger)
-GH_TOKEN = os.environ.get('GH_TOKEN')
-REPO_OWNER = "Cheesenham"
-REPO_NAME = "tunify"
-
-@app.route('/api/search', methods=['POST'])
-def search():
-    data = request.json
-    query = data.get('query')
-    source = data.get('source', 'yt')
+# Final Pure Handler to avoid Flask routing issues on Vercel
+def handler(request):
+    path = request.path
+    method = request.method
     
-    if not query:
-        return jsonify({"success": False, "msg": "검색어를 입력하세요."})
+    # 1. Routing logic inside handler
+    if path.endswith('/search') and method == 'POST':
+        return search(request)
+    elif path.endswith('/extract') and method == 'POST':
+        return extract(request)
+    else:
+        return {
+            "statusCode": 404,
+            "body": json.dumps({"success": False, "msg": f"Route {path} not found"}),
+            "headers": {"Content-Type": "application/json"}
+        }
 
+def search(request):
     try:
+        data = json.loads(request.body)
+        query = data.get('query')
+        source = data.get('source', 'yt')
+        
+        if not query:
+            return {"statusCode": 400, "body": json.dumps({"success": False, "msg": "No query"})}
+
         search_query = f"ytsearch5:{query}" if source == 'yt' else f"scsearch5:{query}"
         ydl_opts = {'quiet': True, 'skip_download': True, 'extract_flat': True}
         
@@ -38,33 +44,32 @@ def search():
                     "thumbnail": entry.get('thumbnail'),
                     "uploader": entry.get('uploader')
                 })
-            return jsonify({"success": True, "results": output})
+            
+            return {
+                "statusCode": 200,
+                "body": json.dumps({"success": True, "results": output}),
+                "headers": {"Content-Type": "application/json"}
+            }
     except Exception as e:
-        return jsonify({"success": False, "msg": str(e)}), 500
+        return {"statusCode": 500, "body": json.dumps({"success": False, "msg": str(e)})}
 
-@app.route('/api/extract', methods=['POST'])
-def extract():
-    data = request.json
-    if not GH_TOKEN:
-        return jsonify({"success": False, "msg": "GH_TOKEN 설정이 필요합니다."}), 500
+def extract(request):
+    try:
+        data = json.loads(request.body)
+        GH_TOKEN = os.environ.get('GH_TOKEN')
+        if not GH_TOKEN:
+            return {"statusCode": 500, "body": json.dumps({"success": False, "msg": "GH_TOKEN missing"})}
 
-    gh_url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/dispatches"
-    headers = {
-        "Authorization": f"token {GH_TOKEN}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    payload = {
-        "event_type": "extract_request",
-        "client_payload": data
-    }
-    res = requests.post(gh_url, headers=headers, json=payload)
-    if res.status_code == 204:
-        return jsonify({"success": True, "msg": "Cloud Worker 호출 성공!"})
-    return jsonify({"success": False, "msg": f"GitHub 호출 실패: {res.text}"}), res.status_code
-
-# Vercel entry point
-def handler(request):
-    return app(request)
-
-if __name__ == "__main__":
-    app.run(debug=True)
+        gh_url = f"https://api.github.com/repos/Cheesenham/tunify/dispatches"
+        headers = {
+            "Authorization": f"token {GH_TOKEN}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+        payload = {
+            "event_type": "extract_request",
+            "client_payload": data
+        }
+        res = requests.post(gh_url, headers=headers, json=payload)
+        return {"statusCode": 200, "body": json.dumps({"success": True, "msg": "Sent to GitHub"})}
+    except Exception as e:
+        return {"statusCode": 500, "body": json.dumps({"success": False, "msg": str(e)})}
