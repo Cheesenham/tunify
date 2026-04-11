@@ -3,84 +3,168 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MPL Pro - Pi Maker</title>
+    <title>MPL Pro - Pi Maker v2</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap" rel="stylesheet">
     <style>
         :root { --primary: #ef4444; --bg: #0f172a; }
-        body { font-family: 'Outfit', sans-serif; background: var(--bg); color: white; padding: 20px; }
-        .container { max-width: 800px; margin: 0 auto; }
-        .search-box { display: flex; gap: 10px; margin-bottom: 30px; background: rgba(255,255,255,0.05); padding: 5px; border-radius: 12px; }
-        select, input { padding: 12px; background: none; border: none; color: white; font-size: 1rem; }
-        input { flex: 1; outline: none; }
-        button { padding: 12px 25px; background: var(--primary); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; }
-        .item { background: #1e293b; border-radius: 15px; padding: 15px; margin-bottom: 12px; display: flex; align-items: center; gap: 15px; border: 1px solid rgba(255,255,255,0.05); }
-        .item img { width: 100px; height: 100px; border-radius: 10px; object-fit: cover; }
-        .item-info { flex: 1; overflow: hidden; }
-        .item-title { font-weight: bold; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .item-meta { font-size: 0.8rem; opacity: 0.5; }
-        .btn-group { display: flex; flex-direction: column; gap: 5px; }
-        .btn-mini { padding: 6px 12px; font-size: 0.7rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2); background: none; color: white; cursor: pointer; }
-        .btn-mini:hover { background: var(--primary); }
+        body { font-family: 'Outfit', sans-serif; background: var(--bg); color: white; padding: 20px; margin: 0; }
+        .container { max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; padding: 20px; }
+        h1 { grid-column: span 2; margin-bottom: 20px; font-weight: 800; font-size: 2.5rem; text-align: center; }
+        h1 span { color: var(--primary); }
+        
+        .box { background: rgba(255,255,255,0.05); padding: 20px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; height: 500px; }
+        h3 { margin-top: 0; color: #94a3b8; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px; }
+        
+        .search-row { display: flex; gap: 10px; margin-bottom: 15px; }
+        input { flex: 1; padding: 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; color: white; outline: none; transition: 0.3s; }
+        input:focus { border-color: var(--primary); }
+        button { padding: 10px 20px; background: var(--primary); color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 700; transition: 0.3s; }
+        button:hover { transform: translateY(-2px); opacity: 0.9; }
+
+        .results-list { flex: 1; overflow-y: auto; padding-right: 5px; }
+        .results-list::-webkit-scrollbar { width: 5px; }
+        .results-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+
+        .item { padding: 12px; border-radius: 10px; margin-bottom: 10px; cursor: pointer; display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.02); transition: 0.2s; border: 1px solid transparent; }
+        .item:hover { background: rgba(255,255,255,0.08); }
+        .item.selected { border-color: var(--primary); background: rgba(239, 68, 68, 0.1); }
+        .item img { width: 45px; height: 45px; border-radius: 8px; object-fit: cover; }
+        .item-info { flex: 1; min-width: 0; }
+        .item-title { font-weight: 700; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        #lyric-preview { background: #000; border-radius: 12px; padding: 15px; font-family: monospace; font-size: 0.85rem; color: #888; white-space: pre-wrap; height: 100%; overflow-y: auto; }
+        .lyric-item b { color: var(--primary); margin-right: 10px; }
+
+        .extract-footer { grid-column: span 2; padding: 25px; background: var(--primary); color: white; border-radius: 20px; text-align: center; cursor: pointer; font-weight: 800; font-size: 1.4rem; margin-top: 20px; box-shadow: 0 10px 30px rgba(239, 68, 68, 0.3); transition: 0.3s; }
+        .extract-footer:hover { transform: scale(1.02); }
+        .extract-footer.loading { background: #444; cursor: not-allowed; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1 style="margin-bottom:20px;">🎬 Pi <span>Maker</span></h1>
-        <div class="search-box">
-            <select id="source">
-                <option value="yt">YouTube</option>
-                <option value="sc">SoundCloud</option>
-            </select>
-            <input type="text" id="query" placeholder="Search keywords or paste URL...">
-            <button onclick="search()">Search</button>
+        <h1>🎬 Pi <span>Maker v2</span></h1>
+
+        <!-- 왼쪽: 음악 및 가수 입력 -->
+        <div class="box">
+            <h3>1. Select Music Source</h3>
+            <div class="search-row">
+                <input type="text" id="musicQuery" placeholder="Search keywords or paste YouTube URL">
+                <button onclick="searchMusic()">Search</button>
+            </div>
+            <div id="music-results" class="results-list">
+                <div style="text-align:center; opacity:0.3; margin-top:50px;">곡을 검색하세요</div>
+            </div>
         </div>
-        <div id="results">검색 결과를 입력하세요.</div>
+
+        <!-- 오른쪽: 가사 검색 및 미리보기 -->
+        <div class="box">
+            <h3>2. Link Synced Lyrics (iTunes/LRC)</h3>
+            <div class="search-row">
+                <input type="text" id="lyricQuery" placeholder="Artist - Song Title">
+                <button onclick="searchLyrics()" style="background: #3b82f6;">Search Sync</button>
+            </div>
+            <div id="lyric-preview" class="results-list">
+                <div style="text-align:center; opacity:0.3; margin-top:50px;">가사를 검색하고 미리보세요</div>
+            </div>
+        </div>
+
+        <div id="extract-btn" class="extract-footer" onclick="startExtraction()">
+            🚀 GENERATE MUSIC + SYNCED LYRICS
+        </div>
     </div>
 
     <script>
         const PI_URL = localStorage.getItem('MPL_URL');
-        const USER_ID = localStorage.getItem('MPL_USER');
+        const UID = localStorage.getItem('MPL_USER');
+        let selectedMusic = null;
+        let selectedLyrics = null;
 
-        async function search() {
-            const query = document.getElementById('query').value;
-            const source = document.getElementById('source').value;
-            if(!query) return;
+        async function searchMusic() {
+            const q = document.getElementById('musicQuery').value;
+            if(!q) return;
+            const resBox = document.getElementById('music-results');
+            resBox.innerHTML = "<div style='text-align:center;'>Searching...</div>";
             
-            const list = document.getElementById('results');
-            list.innerText = "라즈베리파이에서 검색 중...";
-
             try {
                 const r = await fetch(`${PI_URL}/api/search`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ query, source })
+                    body: JSON.stringify({ query: q })
                 });
-                const res = await r.json();
-                if(!res.success) throw new Error(res.msg);
-                
-                list.innerHTML = res.results.map(f => `
-                    <div class="item">
-                        <img src="${f.thumbnail}" alt="thumb">
+                const data = await r.json();
+                resBox.innerHTML = data.results.map(f => `
+                    <div class="item" id="m-${f.url.split('v=')[1] || f.url}" onclick='selectMusic(this, ${JSON.stringify(f)})'>
+                        <img src="${f.thumbnail}">
                         <div class="item-info">
                             <div class="item-title">${f.title}</div>
-                            <div class="item-meta">${f.uploader}</div>
-                        </div>
-                        <div class="btn-group">
-                            <button class="btn-mini" onclick="extract('${f.url}', 'music')">🎵 Music</button>
-                            <button class="btn-mini" onclick="extract('${f.url}', 'video')">📽️ Video</button>
+                            <div style="font-size:0.7rem; opacity:0.5;">${f.uploader}</div>
                         </div>
                     </div>
                 `).join('');
-            } catch (e) { alert("연결 실패: " + e.message); }
+            } catch(e) { alert("Server connection failed!"); }
         }
 
-        async function extract(url, mode) {
-            alert("라즈베리파이에 추출을 요청했습니다. 라이브러리를 확인하세요.");
-            await fetch(`${PI_URL}/api/extract`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ url, mode, uid: USER_ID })
-            });
+        function selectMusic(el, item) {
+            selectedMusic = item;
+            document.querySelectorAll('#music-results .item').forEach(x => x.classList.remove('selected'));
+            el.classList.add('selected');
+        }
+
+        async function searchLyrics() {
+            const q = document.getElementById('lyricQuery').value;
+            if(!q) return alert("곡 제목을 입력하세요!");
+            const preBox = document.getElementById('lyric-preview');
+            preBox.innerHTML = "<div style='text-align:center;'>Searching synced lyrics...</div>";
+
+            try {
+                const r = await fetch(`${PI_URL}/api/lyrics/search`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ query: q })
+                });
+                const data = await r.json();
+                if(data.success) {
+                    selectedLyrics = data.lyrics;
+                    preBox.innerHTML = data.lyrics.map(l => `
+                        <div style="margin-bottom:8px;"><b>[${l.time.toFixed(1)}s]</b> ${l.text}</div>
+                    `).join('');
+                } else {
+                    preBox.innerHTML = "<div style='text-align:center; color: #ef4444;'>가사를 찾을 수 없습니다.</div>";
+                    selectedLyrics = null;
+                }
+            } catch(e) { alert("Lyrics server error!"); }
+        }
+
+        async function startExtraction() {
+            if(!selectedMusic) return alert("곡을 먼저 선택하세요!");
+            
+            const artist = document.getElementById('lyricQuery').value.split('-')[0].trim();
+            const btn = document.getElementById('extract-btn');
+            btn.classList.add('loading');
+            btn.innerText = "라즈베리파이 작업 중... (창을 닫지 마세요)";
+
+            try {
+                const r = await fetch(`${PI_URL}/api/extract`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        url: selectedMusic.url,
+                        artist: artist || "Unknown Artist",
+                        selected_lyrics: selectedLyrics,
+                        uid: UID
+                    })
+                });
+                const res = await r.json();
+                if(res.success) {
+                    alert("추출 성공! 보관함을 확인하세요.");
+                    location.href = "/player.html";
+                } else {
+                    alert("추출 실패: " + res.msg);
+                }
+            } catch(e) { alert("서버 응답 없음!"); }
+            
+            btn.classList.remove('loading');
+            btn.innerText = "🚀 GENERATE MUSIC + SYNCED LYRICS";
         }
     </script>
 </body>
