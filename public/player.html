@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MPL - Cloud Player</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: 'Outfit', sans-serif; background: #0f172a; color: white; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 30px; color: #4ade80; }
+        .item { background: #1e293b; padding: 15px; border-radius: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid rgba(255,255,255,0.05); }
+        .play { background: #4361ee; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; }
+        .back { text-align: center; display: block; color: #888; text-decoration: none; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Cloud <span>Player</span></h1>
+        <div id="list">Loading...</div>
+        <a href="/" class="back">← Back to Hub</a>
+    </div>
+
+    <script>
+        const SB_URL = "https://rwmifnnqlbljomwayjzm.supabase.co";
+        const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ3bWlmbm5xbGJsam9td2F5anptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NzI4NDUsImV4cCI6MjA5MTQ0ODg0NX0.HSbt457Z7XdBTFWMTKfjwq8k1jtw6U8SZxN33LISeCw";
+        const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
+
+        async function load() {
+            const { data, error } = await supabaseClient.from('media_files').select('*').order('created_at', { ascending: false });
+            const list = document.getElementById('list');
+            if (error || !data) { list.innerText = "Error loading files"; return; }
+            if (data.length === 0) { list.innerText = "No files in storage."; return; }
+            list.innerHTML = data.map(f => `
+                <div class="item">
+                    <div>
+                        <div style="font-weight:bold;">${f.filename}</div>
+                        <div style="font-size:0.8rem; opacity:0.5;">${f.type.toUpperCase()}</div>
+                    </div>
+                    <button class="play" onclick="window.open('${f.url}', '_blank')">재생</button>
+                </div>
+            `).join('');
+        }
+        load();
+    </script>
+</body>
+</html>
