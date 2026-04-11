@@ -20,9 +20,12 @@ supabase: Client = create_client(URL, KEY)
 def run():
     try:
         print(f"🚀 [Pro Worker] Starting: {TARGET_URL}")
+        print(f"DEBUG: Supabase URL exists: {'Yes' if URL else 'No'}")
+        print(f"DEBUG: Mode: {MODE}, User: {UID}")
         timestamp = int(time.time())
         
         # 1. Fetch Metadata first
+        print("🔍 Step 1: Fetching metadata from YouTube/SC...")
         info_cmd = ['yt-dlp', '--dump-single-json', '--flat-playlist', TARGET_URL]
         info_res = subprocess.run(info_cmd, capture_output=True, text=True)
         metadata = json.loads(info_res.stdout)
