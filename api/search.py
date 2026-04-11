@@ -1,47 +1,47 @@
 import os
 import json
 import yt_dlp
-from flask import Flask, request, jsonify
+from http.server import BaseHTTPRequestHandler
 
-# Vercel API: Search YouTube/SoundCloud
-def handler(request):
-    if request.method != 'POST':
-        return jsonify({"success": False, "msg": "Method not allowed"}), 405
+class handler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        content_length = int(self.headers['Content-Length'])
+        post_data = self.rfile.read(content_length)
+        data = json.loads(post_data)
         
-    data = request.json
-    query = data.get('query')
-    source = data.get('source', 'yt') # 'yt' or 'sc'
-    
-    if not query:
-        return jsonify({"success": False, "msg": "검색어를 입력하세요."})
+        query = data.get('query')
+        source = data.get('source', 'yt')
+        
+        if not query:
+            self.send_response(400)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"success": False, "msg": "No query"}).encode())
+            return
 
-    try:
-        # yt-dlp search logic
-        search_query = f"ytsearch5:{query}" if source == 'yt' else f"scsearch5:{query}"
-        
-        ydl_opts = {
-            'quiet': True,
-            'skip_download': True,
-            'extract_flat': True,
-            'force_generic_extractor': True if source == 'sc' else False
-        }
-        
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            results = ydl.extract_info(search_query, download=False)
-            entries = results.get('entries', [])
+        try:
+            search_query = f"ytsearch5:{query}" if source == 'yt' else f"scsearch5:{query}"
+            ydl_opts = {'quiet': True, 'skip_download': True, 'extract_flat': True}
             
-            output = []
-            for entry in entries:
-                output.append({
-                    "id": entry.get('id'),
-                    "url": entry.get('url') or entry.get('webpage_url'),
-                    "title": entry.get('title'),
-                    "thumbnail": entry.get('thumbnail'),
-                    "duration": entry.get('duration'),
-                    "uploader": entry.get('uploader')
-                })
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                results = ydl.extract_info(search_query, download=False)
+                entries = results.get('entries', [])
+                output = []
+                for entry in entries:
+                    output.append({
+                        "id": entry.get('id'),
+                        "url": entry.get('url') or entry.get('webpage_url'),
+                        "title": entry.get('title'),
+                        "thumbnail": entry.get('thumbnail'),
+                        "uploader": entry.get('uploader')
+                    })
                 
-            return jsonify({"success": True, "results": output})
-            
-    except Exception as e:
-        return jsonify({"success": False, "msg": str(e)}), 500
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": True, "results": output}).encode())
+        except Exception as e:
+            self.send_response(500)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"success": False, "msg": str(e)}).encode())
