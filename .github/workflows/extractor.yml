@@ -1,0 +1,32 @@
+name: MPL Cloud Extractor
+on:
+  repository_dispatch:
+    types: [extract_request]
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          python -m pip install --upgrade pip
+          pip install yt-dlp supabase
+
+      - name: Run Extraction Worker
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          TARGET_URL: ${{ github.event.client_payload.url }}
+          EXTRACT_MODE: ${{ github.event.client_payload.mode }}
+          USER_ID: ${{ github.event.client_payload.uid }}
+        run: python scripts/worker.py

@@ -1,58 +1,103 @@
 import os
 import json
 import time
-import shutil
-import glob
 import threading
 import subprocess
-from werkzeug.utils import secure_filename
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify
 from flask_cors import CORS
-import yt_dlp
-import urllib.request
-import urllib.parse
+from supabase import create_client, Client
 
-app = Flask(__name__, static_folder='public')
+app = Flask(__name__)
 CORS(app)
 
-# --- 기본 경로 설정 ---
+# --- Configuration ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PUBLIC_DIR = os.path.join(BASE_DIR, 'public')
 STORAGE_DIR = os.path.join(BASE_DIR, 'mpl_storage')
-DB_DIR = os.path.join(BASE_DIR, 'db')
-USERS_DB = os.path.join(DB_DIR, 'users.json')
-
 os.makedirs(STORAGE_DIR, exist_ok=True)
-os.makedirs(PUBLIC_DIR, exist_ok=True)
-os.makedirs(DB_DIR, exist_ok=True)
 
-# --- 사용자 관리 로직 ---
-def load_users():
-    default_users = {
-        "admin": {"pw": "1234", "role": "admin"},
-        "testuser": {"pw": "1234", "role": "user"}
-    }
-    if not os.path.exists(USERS_DB):
-        with open(USERS_DB, 'w', encoding='utf-8') as f:
-            json.dump(default_users, f, indent=2)
-        return default_users
+# Supabase Settings
+SUPABASE_URL = "https://rwmifnnqlbljomwayjzm.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ3bWlmbm5xbGJsam9td2F5anptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NzI4NDUsImV4cCI6MjA5MTQ0ODg0NX0.HSbt457Z7XdBTFWMTKfjwq8k1jtw6U8SZxN33LISeCw"
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# --- Helpers ---
+def check_ffmpeg():
+    try:
+        subprocess.run(['ffmpeg', '-version'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+    except: return False
+
+@app.route('/api/status')
+def status():
+    return jsonify({"success": True, "msg": "MPL Supabase Extraction Worker Online", "ffmpeg": check_ffmpeg()})
+
+# --- Extraction logic with Supabase Upload ---
+@app.route('/api/maker/extract', methods=['POST'])
+def extract_v3():
+    data = request.json
+    url = data.get('url')
+    mode = data.get('mode', 'music') # music or video
+    uid = data.get('uid', 'public')
     
-    with open(USERS_DB, 'r', encoding='utf-8') as f:
-        try:
-            data = json.load(f)
-            # 호환성: 리스트 형식을 딕셔너리로 변환
-            if isinstance(data, list):
-                new_data = {}
-                for u in data:
-                    new_data[u['id']] = {"pw": u['pw'], "role": u.get('role', 'user')}
-                return new_data
-            return data
-        except:
-            return default_users
+    if not url: return jsonify({"success": False, "msg": "URL이 누락되었습니다."})
 
-def save_users(users):
-    with open(USERS_DB, 'w', encoding='utf-8') as f:
-        json.dump(users, f, indent=2, ensure_ascii=False)
+    def run_extract():
+        try:
+            timestamp = int(time.time())
+            ext = 'mp3' if mode == 'music' else 'mp4'
+            filename = f"mpl_{uid}_{timestamp}.{ext}"
+            out_path = os.path.join(STORAGE_DIR, filename)
+            
+            # 1. Download with yt-dlp
+            has_ffmpeg = check_ffmpeg()
+            cmd = ['yt-dlp']
+            if mode == 'music':
+                cmd += ['-x', '--audio-format', 'mp3', '--audio-quality', '0']
+            else:
+                if has_ffmpeg:
+                    cmd += ['-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best']
+                else:
+                    cmd += ['-f', 'best[ext=mp4]']
+            
+            cmd += ['-o', out_path, url]
+            subprocess.run(cmd, check=True)
+
+            # 2. Upload to Supabase Storage (Bucket: media)
+            print(f"⬆️ [Supabase] 업로드 시작: {filename}")
+            with open(out_path, 'rb') as f:
+                # 버킷 이름은 'media'로 가정 (사전에 생성 필요)
+                res = supabase.storage.from_('media').upload(
+                    path=f"{uid}/{filename}",
+                    file=f,
+                    file_options={"content-type": f"audio/mpeg" if mode == 'music' else "video/mp4"}
+                )
+            
+            # 3. Get Public URL
+            public_url = supabase.storage.from_('media').get_public_url(f"{uid}/{filename}")
+            print(f"✅ [Supabase] 업로드 완료: {public_url}")
+
+            # 4. Optional: Save metadata to Postgre DB
+            try:
+                supabase.table('media_files').insert({
+                    "uid": uid,
+                    "filename": filename,
+                    "url": public_url,
+                    "type": mode,
+                    "created_at": "now()"
+                }).execute()
+            except Exception as e:
+                print(f"⚠️ [DB] 기록 실패 (테이블 확인 필요): {e}")
+
+            # 5. Cleanup local file
+            if os.path.exists(out_path):
+                os.remove(out_path)
+                print(f"🗑️ [Cleanup] 로컬 파일 삭제 완료: {filename}")
+
+        except Exception as e:
+            print(f"❌ [Error] Extraction/Upload Failed: {str(e)}")
+
+    threading.Thread(target=run_extract, daemon=True).start()
+    return jsonify({"success": True, "msg": "추출 및 클라우드 업로드 시작됨. 잠시 후 Supabase에서 확인하세요."})
 
 # --- 자동 휴지통 비우기 (7일 경과 파일 삭제) ---
 def cleanup_trash_task():
