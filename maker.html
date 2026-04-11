@@ -3,73 +3,70 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MPL Pro - Pi Maker v2</title>
+    <title>MPL Pro - Pi Maker v3 (Playlist & SC)</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap" rel="stylesheet">
     <style>
-        :root { --primary: #ef4444; --bg: #0f172a; }
+        :root { --primary: #ef4444; --bg: #0f172a; --sc: #ff5500; }
         body { font-family: 'Outfit', sans-serif; background: var(--bg); color: white; padding: 20px; margin: 0; }
         .container { max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; padding: 20px; }
         h1 { grid-column: span 2; margin-bottom: 20px; font-weight: 800; font-size: 2.5rem; text-align: center; }
         h1 span { color: var(--primary); }
         
         .box { background: rgba(255,255,255,0.05); padding: 20px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; height: 500px; }
-        h3 { margin-top: 0; color: #94a3b8; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px; }
+        h3 { margin-top: 0; color: #94a3b8; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; }
         
+        .search-opts { display: flex; gap: 10px; margin-bottom: 10px; }
+        .opt-btn { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid #333; background: none; color: #777; cursor: pointer; font-size: 0.8rem; }
+        .opt-btn.active { border-color: var(--primary); color: white; background: rgba(239, 68, 68, 0.2); }
+        .opt-btn.active.sc { border-color: var(--sc); background: rgba(255, 85, 0, 0.2); }
+
         .search-row { display: flex; gap: 10px; margin-bottom: 15px; }
         input { flex: 1; padding: 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; color: white; outline: none; transition: 0.3s; }
         input:focus { border-color: var(--primary); }
         button { padding: 10px 20px; background: var(--primary); color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 700; transition: 0.3s; }
-        button:hover { transform: translateY(-2px); opacity: 0.9; }
 
         .results-list { flex: 1; overflow-y: auto; padding-right: 5px; }
-        .results-list::-webkit-scrollbar { width: 5px; }
-        .results-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
-
-        .item { padding: 12px; border-radius: 10px; margin-bottom: 10px; cursor: pointer; display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.02); transition: 0.2s; border: 1px solid transparent; }
+        .item { padding: 12px; border-radius: 10px; margin-bottom: 10px; cursor: pointer; display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.02); transition: 0.2s; border: 1px solid transparent; position: relative; }
         .item:hover { background: rgba(255,255,255,0.08); }
         .item.selected { border-color: var(--primary); background: rgba(239, 68, 68, 0.1); }
         .item img { width: 45px; height: 45px; border-radius: 8px; object-fit: cover; }
-        .item-info { flex: 1; min-width: 0; }
-        .item-title { font-weight: 700; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .playlist-badge { position: absolute; top:5px; right:5px; background:var(--primary); font-size:0.6rem; padding:2px 6px; border-radius:10px; }
 
-        #lyric-preview { background: #000; border-radius: 12px; padding: 15px; font-family: monospace; font-size: 0.85rem; color: #888; white-space: pre-wrap; height: 100%; overflow-y: auto; }
-        .lyric-item b { color: var(--primary); margin-right: 10px; }
-
-        .extract-footer { grid-column: span 2; padding: 25px; background: var(--primary); color: white; border-radius: 20px; text-align: center; cursor: pointer; font-weight: 800; font-size: 1.4rem; margin-top: 20px; box-shadow: 0 10px 30px rgba(239, 68, 68, 0.3); transition: 0.3s; }
-        .extract-footer:hover { transform: scale(1.02); }
-        .extract-footer.loading { background: #444; cursor: not-allowed; }
+        #lyric-preview { background: #000; border-radius: 12px; padding: 15px; font-family: monospace; font-size: 0.85rem; color: #888; height: 100%; overflow-y: auto; }
+        .extract-footer { grid-column: span 2; padding: 25px; background: var(--primary); color: white; border-radius: 20px; text-align: center; cursor: pointer; font-weight: 800; font-size: 1.4rem; margin-top: 20px; transition: 0.3s; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🎬 Pi <span>Maker v2</span></h1>
+        <h1>🎬 Pi <span>Maker v3</span></h1>
 
-        <!-- 왼쪽: 음악 및 가수 입력 -->
         <div class="box">
-            <h3>1. Select Music Source</h3>
+            <h3>1. Search Music Library</h3>
+            <div class="search-opts">
+                <button id="p-yt" class="opt-btn active" onclick="setPlatform('yt')">YouTube</button>
+                <button id="p-sc" class="opt-btn" onclick="setPlatform('sc')">SoundCloud</button>
+                <div style="width: 20px;"></div>
+                <button id="t-video" class="opt-btn active" onclick="setType('video')">Single</button>
+                <button id="t-playlist" class="opt-btn" onclick="setType('playlist')">Playlist</button>
+            </div>
             <div class="search-row">
-                <input type="text" id="musicQuery" placeholder="Search keywords or paste YouTube URL">
+                <input type="text" id="musicQuery" placeholder="Search anything...">
                 <button onclick="searchMusic()">Search</button>
             </div>
-            <div id="music-results" class="results-list">
-                <div style="text-align:center; opacity:0.3; margin-top:50px;">곡을 검색하세요</div>
-            </div>
+            <div id="music-results" class="results-list"></div>
         </div>
 
-        <!-- 오른쪽: 가사 검색 및 미리보기 -->
         <div class="box">
-            <h3>2. Link Synced Lyrics (iTunes/LRC)</h3>
+            <h3>2. Sync Lyrics (Manual Selection)</h3>
             <div class="search-row">
                 <input type="text" id="lyricQuery" placeholder="Artist - Song Title">
                 <button onclick="searchLyrics()" style="background: #3b82f6;">Search Sync</button>
             </div>
-            <div id="lyric-preview" class="results-list">
-                <div style="text-align:center; opacity:0.3; margin-top:50px;">가사를 검색하고 미리보세요</div>
-            </div>
+            <div id="lyric-preview" class="results-list"></div>
         </div>
 
         <div id="extract-btn" class="extract-footer" onclick="startExtraction()">
-            🚀 GENERATE MUSIC + SYNCED LYRICS
+            🚀 GENERATE SELECTION
         </div>
     </div>
 
@@ -78,93 +75,81 @@
         const UID = localStorage.getItem('MPL_USER');
         let selectedMusic = null;
         let selectedLyrics = null;
+        let currentPlatform = 'yt';
+        let currentType = 'video';
+
+        function setPlatform(p) {
+            currentPlatform = p;
+            document.querySelectorAll('.opt-btn[id^="p-"]').forEach(b => b.classList.remove('active'));
+            document.getElementById(`p-${p}`).classList.add('active');
+        }
+        function setType(t) {
+            currentType = t;
+            document.querySelectorAll('.opt-btn[id^="t-"]').forEach(b => b.classList.remove('active'));
+            document.getElementById(`t-${t}`).classList.add('active');
+        }
 
         async function searchMusic() {
             const q = document.getElementById('musicQuery').value;
-            if(!q) return;
             const resBox = document.getElementById('music-results');
             resBox.innerHTML = "<div style='text-align:center;'>Searching...</div>";
-            
-            try {
-                const r = await fetch(`${PI_URL}/api/search`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ query: q })
-                });
-                const data = await r.json();
-                resBox.innerHTML = data.results.map(f => `
-                    <div class="item" id="m-${f.url.split('v=')[1] || f.url}" onclick='selectMusic(this, ${JSON.stringify(f)})'>
-                        <img src="${f.thumbnail}">
-                        <div class="item-info">
-                            <div class="item-title">${f.title}</div>
-                            <div style="font-size:0.7rem; opacity:0.5;">${f.uploader}</div>
-                        </div>
+            const r = await fetch(`${PI_URL}/api/search`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ query: q, platform: currentPlatform, type: currentType })
+            });
+            const data = await r.json();
+            resBox.innerHTML = data.results.map(f => `
+                <div class="item" onclick='selectMusic(this, ${JSON.stringify(f)})'>
+                    <img src="${f.thumbnail}">
+                    <div class="item-info">
+                        <div style="font-weight:700; font-size:0.85rem;">${f.title}</div>
+                        ${f.is_playlist ? `<span class="playlist-badge">PLAYLIST (${f.count})</span>` : ''}
                     </div>
-                `).join('');
-            } catch(e) { alert("Server connection failed!"); }
+                </div>
+            `).join('');
         }
 
         function selectMusic(el, item) {
             selectedMusic = item;
-            document.querySelectorAll('#music-results .item').forEach(x => x.classList.remove('selected'));
+            document.querySelectorAll('.item').forEach(x => x.classList.remove('selected'));
             el.classList.add('selected');
         }
 
         async function searchLyrics() {
             const q = document.getElementById('lyricQuery').value;
-            if(!q) return alert("곡 제목을 입력하세요!");
             const preBox = document.getElementById('lyric-preview');
-            preBox.innerHTML = "<div style='text-align:center;'>Searching synced lyrics...</div>";
-
-            try {
-                const r = await fetch(`${PI_URL}/api/lyrics/search`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ query: q })
-                });
-                const data = await r.json();
-                if(data.success) {
-                    selectedLyrics = data.lyrics;
-                    preBox.innerHTML = data.lyrics.map(l => `
-                        <div style="margin-bottom:8px;"><b>[${l.time.toFixed(1)}s]</b> ${l.text}</div>
-                    `).join('');
-                } else {
-                    preBox.innerHTML = "<div style='text-align:center; color: #ef4444;'>가사를 찾을 수 없습니다.</div>";
-                    selectedLyrics = null;
-                }
-            } catch(e) { alert("Lyrics server error!"); }
+            preBox.innerHTML = "Searching...";
+            const r = await fetch(`${PI_URL}/api/lyrics/search`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ query: q })
+            });
+            const data = await r.json();
+            if(data.success) {
+                selectedLyrics = data.lyrics;
+                preBox.innerHTML = data.lyrics.map(l => `<div><b>[${l.time.toFixed(1)}s]</b> ${l.text}</div>`).join('');
+            } else {
+                preBox.innerHTML = "Not Found.";
+            }
         }
 
         async function startExtraction() {
-            if(!selectedMusic) return alert("곡을 먼저 선택하세요!");
-            
-            const artist = document.getElementById('lyricQuery').value.split('-')[0].trim();
+            if(!selectedMusic) return alert("Select music!");
             const btn = document.getElementById('extract-btn');
-            btn.classList.add('loading');
-            btn.innerText = "라즈베리파이 작업 중... (창을 닫지 마세요)";
-
-            try {
-                const r = await fetch(`${PI_URL}/api/extract`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        url: selectedMusic.url,
-                        artist: artist || "Unknown Artist",
-                        selected_lyrics: selectedLyrics,
-                        uid: UID
-                    })
-                });
-                const res = await r.json();
-                if(res.success) {
-                    alert("추출 성공! 보관함을 확인하세요.");
-                    location.href = "/player.html";
-                } else {
-                    alert("추출 실패: " + res.msg);
-                }
-            } catch(e) { alert("서버 응답 없음!"); }
-            
-            btn.classList.remove('loading');
-            btn.innerText = "🚀 GENERATE MUSIC + SYNCED LYRICS";
+            btn.style.opacity = "0.5"; btn.innerText = "Raspberry Pi Working...";
+            const r = await fetch(`${PI_URL}/api/extract`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    url: selectedMusic.url,
+                    artist: document.getElementById('lyricQuery').value.split('-')[0].trim(),
+                    selected_lyrics: selectedLyrics,
+                    uid: UID
+                })
+            });
+            alert("Task Started! Check library in a few minutes.");
+            btn.style.opacity = "1"; btn.innerText = "🚀 GENERATE SELECTION";
         }
     </script>
 </body>
