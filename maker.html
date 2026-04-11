@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MPL Pro - Pi Maker v4 (Perfect Sync)</title>
+    <title>MPL Pro - Pi Maker v4.1 (Conn-Fix)</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap" rel="stylesheet">
     <style>
         :root { --primary: #ef4444; --bg: #0f172a; --sc: #ff5500; }
@@ -11,70 +11,59 @@
         .container { max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; padding: 20px; }
         h1 { grid-column: span 2; margin-bottom: 20px; font-weight: 800; font-size: 2.5rem; text-align: center; }
         h1 span { color: var(--primary); }
-        h3 { margin-top: 0; color: #94a3b8; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; }
         
         .box { background: rgba(255,255,255,0.05); padding: 20px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; height: 500px; }
-        
         .search-opts { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
-        .opt-btn { flex: 1; min-width: 80px; padding: 10px; border-radius: 10px; border: 1px solid #333; background: none; color: #777; cursor: pointer; font-size: 0.75rem; font-weight: 700; transition: 0.3s; }
+        .opt-btn { flex: 1; min-width: 80px; padding: 10px; border-radius: 10px; border: 1px solid #333; background: none; color: #777; cursor: pointer; font-size: 0.75rem; font-weight: 700; }
         .opt-btn.active { border-color: var(--primary); color: white; background: rgba(239, 68, 68, 0.2); }
-        .opt-btn.active.sc { border-color: var(--sc); background: rgba(255, 85, 0, 0.2); }
         .opt-btn.active.blue { border-color: #3b82f6; background: rgba(59, 130, 246, 0.2); }
 
         .search-row { display: flex; gap: 10px; margin-bottom: 15px; }
-        input { flex: 1; padding: 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; color: white; outline: none; transition: 0.3s; }
-        input:focus { border-color: var(--primary); }
-        button { padding: 10px 20px; background: var(--primary); color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 700; transition: 0.3s; }
+        input { flex: 1; padding: 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; color: white; outline: none; }
+        button { padding: 10px 20px; background: var(--primary); color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 700; }
 
-        .results-list { flex: 1; overflow-y: auto; padding-right: 5px; }
-        .item { padding: 12px; border-radius: 12px; margin-bottom: 10px; cursor: pointer; display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.02); transition: 0.2s; border: 1px solid transparent; position: relative; }
-        .item:hover { background: rgba(255,255,255,0.08); }
+        .results-list { flex: 1; overflow-y: auto; }
+        .item { padding: 12px; border-radius: 12px; margin-bottom: 10px; cursor: pointer; display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.02); border: 1px solid transparent; }
         .item.selected { border-color: var(--primary); background: rgba(239, 68, 68, 0.1); }
         .item img { width: 50px; height: 50px; border-radius: 10px; object-fit: cover; }
-        .item-title { font-weight: 700; font-size: 0.9rem; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
-        #lyric-preview { background: #000; border-radius: 15px; padding: 15px; font-family: monospace; font-size: 0.85rem; color: #888; height: 100%; overflow-y: auto; }
-        .lyric-item b { color: var(--primary); margin-right: 10px; }
-
-        .extract-footer { grid-column: span 2; padding: 25px; background: var(--primary); color: white; border-radius: 20px; text-align: center; cursor: pointer; font-weight: 800; font-size: 1.4rem; margin-top: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); transition: 0.3s; }
-        .extract-footer:hover { transform: scale(1.02); }
+        .extract-footer { grid-column: span 2; padding: 25px; background: var(--primary); color: white; border-radius: 20px; text-align: center; cursor: pointer; font-weight: 800; font-size: 1.4rem; margin-top: 15px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🎬 Pi <span>Maker v4</span></h1>
+        <h1>🎬 Pi <span>Maker v4.1</span></h1>
+        <div style="grid-column: span 2; text-align: center; margin-bottom: 20px; opacity: 0.5;">
+            Connected to: <span id="current-url" style="color: #3b82f6;">Loading...</span>
+        </div>
 
         <div class="box">
-            <h3>1. Select Music/Video Source</h3>
+            <h3>1. Select Source</h3>
             <div class="search-opts">
                 <button id="p-yt" class="opt-btn active" onclick="setPlatform('yt')">YouTube</button>
                 <button id="p-sc" class="opt-btn" onclick="setPlatform('sc')">SoundCloud</button>
                 <div style="width: 10px;"></div>
-                <button id="m-music" class="opt-btn active blue" onclick="setMode('music')">Music (MP3)</button>
-                <button id="m-video" class="opt-btn" onclick="setMode('video')">Video (MP4)</button>
+                <button id="m-music" class="opt-btn active blue" onclick="setMode('music')">MP3</button>
+                <button id="m-video" class="opt-btn" onclick="setMode('video')">MP4</button>
             </div>
             <div class="search-opts" style="margin-top: -5px;">
-                <button id="t-video" class="opt-btn active" onclick="setType('video')">Single Item</button>
-                <button id="t-playlist" class="opt-btn" onclick="setType('playlist')">Full Playlist</button>
+                <button id="t-video" class="opt-btn active" onclick="setType('video')">Single</button>
+                <button id="t-playlist" class="opt-btn" onclick="setType('playlist')">Playlist</button>
             </div>
             <div class="search-row">
-                <input type="text" id="musicQuery" placeholder="Search keywords or paste URL...">
+                <input type="text" id="musicQuery" placeholder="Keywords or URL...">
                 <button onclick="searchMusic()">Search</button>
             </div>
-            <div id="music-results" class="results-list">
-                <div style="text-align:center; opacity:0.3; margin-top:50px;">곡을 검색하세요</div>
-            </div>
+            <div id="music-results" class="results-list"></div>
         </div>
 
         <div class="box">
-            <h3>2. Link Sync Lyrics</h3>
+            <h3>2. Sync Lyrics</h3>
             <div class="search-row">
-                <input type="text" id="lyricQuery" placeholder="Artist - Song Title">
+                <input type="text" id="lyricQuery" placeholder="Artist - Title">
                 <button onclick="searchLyrics()" style="background: #3b82f6;">Search Sync</button>
             </div>
-            <div id="lyric-preview" class="results-list">
-                <div style="text-align:center; opacity:0.3; margin-top:50px;">가사를 검색하고 미리보세요</div>
-            </div>
+            <div id="lyric-preview" class="results-list"></div>
         </div>
 
         <div id="extract-btn" class="extract-footer" onclick="startExtraction()">
@@ -83,55 +72,56 @@
     </div>
 
     <script>
-        const PI_URL = localStorage.getItem('MPL_URL');
-        const UID = localStorage.getItem('MPL_USER');
+        let PI_URL = localStorage.getItem('MPL_URL');
+        if(!PI_URL) {
+            PI_URL = prompt("Pi Server Address (e.g. https://xxx.trycloudflare.com)");
+            localStorage.setItem('MPL_URL', PI_URL);
+        }
+        // trailing slash 제거
+        if(PI_URL.endsWith('/')) PI_URL = PI_URL.slice(0, -1);
+        document.getElementById('current-url').innerText = PI_URL;
+
+        const UID = localStorage.getItem('MPL_USER') || 'admin';
         let selectedMusic = null;
         let selectedLyrics = null;
         let currentPlatform = 'yt';
         let currentMode = 'music';
         let currentType = 'video';
 
-        function setPlatform(p) {
-            currentPlatform = p;
-            document.querySelectorAll('.opt-btn[id^="p-"]').forEach(b => b.classList.remove('active'));
-            document.getElementById(`p-${p}`).classList.add('active');
-        }
-        function setMode(m) {
-            currentMode = m;
-            document.querySelectorAll('.opt-btn[id^="m-"]').forEach(b => b.classList.remove('active', 'blue'));
-            document.getElementById(`m-${m}`).classList.add('active', 'blue');
-        }
-        function setType(t) {
-            currentType = t;
-            document.querySelectorAll('.opt-btn[id^="t-"]').forEach(b => b.classList.remove('active'));
-            document.getElementById(`t-${t}`).classList.add('active');
+        function setPlatform(p) { currentPlatform = p; updateBtns('p', p); }
+        function setMode(m) { currentMode = m; updateBtns('m', m); }
+        function setType(t) { currentType = t; updateBtns('t', t); }
+        function updateBtns(prefix, val) {
+            document.querySelectorAll(`.opt-btn[id^="${prefix}-"]`).forEach(b => b.classList.remove('active', 'blue'));
+            const el = document.getElementById(`${prefix}-${val}`);
+            el.classList.add('active');
+            if(prefix === 'm') el.classList.add('blue');
         }
 
         async function searchMusic() {
             const q = document.getElementById('musicQuery').value;
-            if(!q) return;
             const resBox = document.getElementById('music-results');
-            resBox.innerHTML = "<div style='text-align:center;'>Searching...</div>";
-            
+            resBox.innerHTML = "Searching...";
             try {
                 const r = await fetch(`${PI_URL}/api/search`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ query: q, platform: currentPlatform, type: currentType })
                 });
+                if(!r.ok) throw new Error("HTTP Status " + r.status);
                 const data = await r.json();
                 resBox.innerHTML = data.results.map(f => `
                     <div class="item" onclick='selectMusic(this, ${JSON.stringify(f)})'>
-                        <img src="${f.thumbnail || 'https://via.placeholder.com/100?text=No+Img'}">
+                        <img src="${f.thumbnail || ''}">
                         <div class="item-info">
-                            <div class="item-title">${f.title}</div>
-                            <div style="font-size:0.75rem; color:${f.is_playlist ? '#ef4444' : '#666'}; font-weight:700;">
-                                ${f.is_playlist ? 'PLAYLIST ('+f.count+')' : 'SINGLE'}
-                            </div>
+                            <div style="font-weight:700;">${f.title}</div>
+                            <div style="font-size:0.7rem; opacity:0.5;">${f.is_playlist ? 'PLAYLIST' : 'SINGLE'}</div>
                         </div>
                     </div>
                 `).join('');
-            } catch(e) { alert("Sever offline?"); }
+            } catch(e) { 
+                alert("Server Connection Failed!\nTarget: " + PI_URL + "\nError: " + e.message + "\n\nTip: Check if the address starts with https://"); 
+            }
         }
 
         function selectMusic(el, item) {
@@ -142,9 +132,8 @@
 
         async function searchLyrics() {
             const q = document.getElementById('lyricQuery').value;
-            if(!q) return;
             const preBox = document.getElementById('lyric-preview');
-            preBox.innerHTML = "Finding high-quality sync...";
+            preBox.innerHTML = "Searching...";
             try {
                 const r = await fetch(`${PI_URL}/api/lyrics/search`, {
                     method: 'POST',
@@ -155,31 +144,27 @@
                 if(data.success) {
                     selectedLyrics = data.lyrics;
                     preBox.innerHTML = data.lyrics.map(l => `<div><b>[${l.time.toFixed(1)}s]</b> ${l.text}</div>`).join('');
-                } else {
-                    preBox.innerHTML = "<div style='text-align:center;'>Not found. Auto-matching will be used.</div>";
                 }
             } catch(e) {}
         }
 
         async function startExtraction() {
-            if(!selectedMusic) return alert("Select music first!");
+            if(!selectedMusic) return alert("Select music!");
             const btn = document.getElementById('extract-btn');
-            btn.style.opacity = "0.5"; btn.innerText = "Raspberry Pi Processing...";
-            try {
-                const r = await fetch(`${PI_URL}/api/extract`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        url: selectedMusic.url,
-                        artist: document.getElementById('lyricQuery').value.split('-')[0].trim(),
-                        selected_lyrics: selectedLyrics,
-                        mode: currentMode,
-                        uid: UID
-                    })
-                });
-                alert("Started! Check your library in a moment.");
-            } catch(e) { alert("Request failed!"); }
-            btn.style.opacity = "1"; btn.innerText = "🚀 GENERATE SELECTION";
+            btn.style.opacity = "0.5"; btn.innerText = "Raspberry Pi Working...";
+            await fetch(`${PI_URL}/api/extract`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    url: selectedMusic.url,
+                    artist: document.getElementById('lyricQuery').value.split('-')[0].trim(),
+                    selected_lyrics: selectedLyrics,
+                    mode: currentMode,
+                    uid: UID
+                })
+            });
+            alert("Extraction Started!");
+            btn.style.opacity = "1"; btn.innerText = "🚀 START EXTRACTION";
         }
     </script>
 </body>
