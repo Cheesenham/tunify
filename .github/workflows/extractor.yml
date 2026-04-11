@@ -20,7 +20,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg
           python -m pip install --upgrade pip
-          pip install yt-dlp supabase
+          pip install yt-dlp supabase mutagen
 
       - name: Run Extraction Worker
         env:
