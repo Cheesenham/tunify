@@ -3,24 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MPL Pro - Dynamic Player</title>
+    <title>MPL Pro - Dynamic Player (Editor Mode)</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/color-thief/2.3.0/color-thief.umd.js"></script>
     <style>
-        :root { --main-color: #444; }
+        :root { --main-color: #444; --primary: #ef4444; }
         body { margin: 0; font-family: 'Outfit', sans-serif; background: #000; color: white; overflow: hidden; height: 100vh; display: flex; align-items: center; justify-content: center; }
         #bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; transition: 1s; background: radial-gradient(circle at center, var(--main-color) 0%, #000 80%); }
         .player-card { width: 90%; max-width: 450px; text-align: center; }
-        .album-art { width: 100%; aspect-ratio: 1/1; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); object-fit: cover; margin-bottom: 30px; transition: 0.5s; background: #1e293b; }
-        .info { margin-bottom: 30px; }
-        .title { font-size: 1.5rem; font-weight: 700; margin-bottom: 5px; line-height: 1.2; }
+        .album-art { width: 100%; aspect-ratio: 1/1; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); object-fit: cover; margin-bottom: 25px; transition: 0.5s; background: #1e293b; }
+        
+        .info { margin-bottom: 20px; }
+        .title { font-size: 1.5rem; font-weight: 700; margin-bottom: 5px; }
         .artist { opacity: 0.6; font-size: 1rem; color: #cbd5e1; }
-        .lyrics-container { height: 120px; overflow: hidden; position: relative; margin: 20px 0; mask-image: linear-gradient(to bottom, transparent, #000 20%, #000 80%, transparent); }
+        
+        .lyrics-container { height: 120px; overflow: hidden; position: relative; margin: 15px 0; mask-image: linear-gradient(to bottom, transparent, #000 20%, #000 80%, transparent); }
         #lyrics-track { transition: transform 0.5s cubic-bezier(0.2, 0, 0.2, 1); }
-        .lyric-line { padding: 10px 0; font-size: 1.1rem; opacity: 0.2; transition: 0.3s; }
+        .lyric-line { padding: 10px 0; font-size: 1.1rem; opacity: 0.15; transition: 0.3s; }
         .lyric-line.active { opacity: 1; transform: scale(1.1); font-weight: 700; }
-        audio { width: 100%; filter: invert(1); opacity: 0.6; margin-top: 20px; }
+        
+        audio { width: 100%; filter: invert(1); opacity: 0.6; margin-top: 15px; }
+        
+        .controls-row { display: flex; justify-content: center; gap: 10px; margin-top: 20px; }
+        .btn-pill { background: rgba(255,255,255,0.1); border:none; color:white; padding:10px 18px; border-radius:30px; cursor:pointer; font-size: 0.85rem; transition: 0.3s; }
+        .btn-pill:hover { background: rgba(255,255,255,0.2); }
+        .btn-save { background: var(--primary); font-weight: 700; }
+        
+        /* Edit Modal */
+        #editModal { display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:#1e293b; padding:30px; border-radius:24px; z-index:200; width:300px; box-shadow:0 10px 40px rgba(0,0,0,1); }
+        #editModal input { width:100%; padding:12px; margin-bottom:15px; background:#0f172a; border:1px solid #333; color:white; border-radius:10px; box-sizing:border-box; }
+        
         .back-btn { position: fixed; top: 20px; left: 20px; color: white; text-decoration: none; opacity: 0.5; }
     </style>
 </head>
@@ -31,27 +44,45 @@
     <div class="player-card">
         <img id="poster" class="album-art" src="" alt="album" crossorigin="anonymous">
         <div class="info">
-            <div id="title" class="title">Select a song from library</div>
+            <div id="title" class="title">Select Music</div>
             <div id="artist" class="artist"></div>
         </div>
+        
         <div class="lyrics-container">
             <div id="lyrics-track">
-                <div class="lyric-line">MPL Cloud Player Ready</div>
+                <div class="lyric-line">Select a song to start</div>
             </div>
         </div>
+
         <audio id="audio" controls autoplay crossorigin="anonymous"></audio>
-        <div style="margin-top: 20px;">
-            <button onclick="openList()" style="background: rgba(255,255,255,0.1); border:none; color:white; padding:10px 25px; border-radius:30px; cursor:pointer;">Library List</button>
+
+        <div class="controls-row">
+            <button class="btn-pill" onclick="openList()">Library</button>
+            <button class="btn-pill" onclick="openEdit()">Edit Info</button>
+            <button class="btn-pill" onclick="adjustSync(-0.1)">-0.1s</button>
+            <button class="btn-pill" onclick="adjustSync(0.1)">+0.1s</button>
+            <button class="btn-pill btn-save" id="save-btn" style="display:none;" onclick="saveSync()">Save Sync</button>
         </div>
     </div>
 
+    <!-- Edit Info Modal -->
+    <div id="editModal">
+        <h3 style="margin-top:0;">Edit Song Info</h3>
+        <input type="text" id="newTitle" placeholder="Title">
+        <input type="text" id="newArtist" placeholder="Artist">
+        <button onclick="saveInfo()" style="width:100%; padding:12px; background:var(--primary); border:none; color:white; border-radius:10px; font-weight:700;">Update Info</button>
+        <button onclick="closeEdit()" style="width:100%; margin-top:10px; background:none; color:#666; border:none; cursor:pointer;">Cancel</button>
+    </div>
+
+    <!-- Library Modal -->
     <div id="listModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:100; overflow-y:auto; padding:40px 20px; backdrop-filter: blur(10px);">
-        <h2 style="text-align:center;">My Library</h2>
+        <h2 style="text-align:center;">Cloud Library</h2>
         <div id="fileList" style="max-width:500px; margin:0 auto;"></div>
         <button onclick="closeList()" style="display:block; margin:30px auto; padding:10px 40px; border-radius:30px; background:white; color:black; border:none; font-weight:700;">Close</button>
     </div>
 
     <script>
+        const PI_URL = localStorage.getItem('MPL_URL');
         const SB_URL = "https://rwmifnnqlbljomwayjzm.supabase.co";
         const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ3bWlmbm5xbGJsam9td2F5anptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NzI4NDUsImV4cCI6MjA5MTQ0ODg0NX0.HSbt457Z7XdBTFWMTKfjwq8k1jtw6U8SZxN33LISeCw";
         const supabaseClient = supabase.createClient(SB_URL, SB_ANON);
@@ -60,7 +91,9 @@
         const poster = document.getElementById('poster');
         const bg = document.getElementById('bg');
         const colorThief = new ColorThief();
+        let currentItem = null;
         let lyrics = [];
+        let hasChanges = false;
 
         async function openList() {
             document.getElementById('listModal').style.display = 'block';
@@ -80,41 +113,97 @@
         function closeList() { document.getElementById('listModal').style.display = 'none'; }
 
         async function playSong(item) {
+            currentItem = item;
             closeList();
             audio.src = item.url;
             document.getElementById('title').innerText = item.filename;
             document.getElementById('artist').innerText = item.artist || "";
-            
-            // 앨범 아트 설정 및 색상 추출
             poster.src = item.thumbnail || "https://via.placeholder.com/500?text=MPL+Music";
             poster.onload = () => {
                 try {
                     const color = colorThief.getColor(poster);
                     document.documentElement.style.setProperty('--main-color', `rgb(${color[0]}, ${color[1]}, ${color[2]})`);
-                } catch(e) { console.log("Color skip"); }
+                } catch(e) {}
             };
 
-            // 가사 로직 (Smart Intro 포함)
             if(item.mpl_url) {
                 const r = await fetch(item.mpl_url);
                 const data = await r.json();
-                let lData = data.synced_lyrics || [];
-                
-                // 3초 이상 여유가 있으면 인트로 삽입
-                if (lData.length > 0 && lData[0].time > 3.0) {
-                    lData.unshift({time: 0, text: "Powered by MPL and Tunify"});
-                }
-                lyrics = lData;
+                lyrics = data.synced_lyrics || [];
                 renderLyrics();
             } else {
-                lyrics = [{time:0, text:"No Synced Lyrics Available"}];
+                lyrics = [{time:0, text:"No Sync Available"}];
                 renderLyrics();
             }
+            hasChanges = false;
+            document.getElementById('save-btn').style.display = 'none';
         }
 
         function renderLyrics() {
             const track = document.getElementById('lyrics-track');
             track.innerHTML = lyrics.map((l, i) => `<div id="lyric-${i}" class="lyric-line">${l.text}</div>`).join('');
+        }
+
+        function adjustSync(val) {
+            if(!lyrics.length) return;
+            lyrics = lyrics.map(l => ({...l, time: l.time + val}));
+            hasChanges = true;
+            document.getElementById('save-btn').style.display = 'inline-block';
+            // 실시간 반영을 위해 스크롤만 살짝 업데이트됨
+        }
+
+        async function saveSync() {
+            if(!currentItem) return;
+            const res = await fetch(`${PI_URL}/api/edit`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    id: currentItem.id,
+                    mpl_url: currentItem.mpl_url,
+                    title: currentItem.filename,
+                    artist: currentItem.artist,
+                    lyrics: lyrics
+                })
+            });
+            const data = await res.json();
+            if(data.success) {
+                alert("Lyrics sync saved permanently!");
+                hasChanges = false;
+                document.getElementById('save-btn').style.display = 'none';
+            }
+        }
+
+        function openEdit() {
+            if(!currentItem) return;
+            document.getElementById('editModal').style.display = 'block';
+            document.getElementById('newTitle').value = currentItem.filename;
+            document.getElementById('newArtist').value = currentItem.artist || "";
+        }
+        function closeEdit() { document.getElementById('editModal').style.display = 'none'; }
+
+        async function saveInfo() {
+            const t = document.getElementById('newTitle').value;
+            const a = document.getElementById('newArtist').value;
+            const res = await fetch(`${PI_URL}/api/edit`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    id: currentItem.id,
+                    mpl_url: currentItem.mpl_url,
+                    title: t,
+                    artist: a,
+                    lyrics: lyrics
+                })
+            });
+            const data = await res.json();
+            if(data.success) {
+                alert("Song info updated!");
+                document.getElementById('title').innerText = t;
+                document.getElementById('artist').innerText = a;
+                currentItem.filename = t;
+                currentItem.artist = a;
+                closeEdit();
+            }
         }
 
         audio.ontimeupdate = () => {
