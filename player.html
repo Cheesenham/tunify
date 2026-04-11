@@ -3,89 +3,144 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MPL Pro - Cloud Player</title>
+    <title>MPL Pro - Dynamic Player</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/color-thief/2.3.0/color-thief.umd.js"></script>
     <style>
-        :root { --primary: #4361ee; --accent: #4ade80; --bg: #0f172a; }
-        body { font-family: 'Outfit', sans-serif; background: var(--bg); color: white; padding: 20px; }
-        .container { max-width: 700px; margin: 0 auto; }
-        h1 { text-align: center; margin-bottom: 30px; font-weight: 800; font-size: 2rem; }
-        h1 span { color: var(--accent); }
-        .item { background: #1e293b; padding: 18px; border-radius: 15px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; border: 1px solid rgba(255,255,255,0.05); }
-        .info { flex: 1; overflow: hidden; }
-        .name { font-weight: 600; margin-bottom: 3px; }
-        .meta { font-size: 0.7rem; opacity: 0.5; }
-        .btn-group { display: flex; gap: 8px; }
-        button { padding: 8px 15px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; font-size: 0.8rem; }
-        .btn-play { background: var(--primary); color: white; }
-        .btn-lyrics { background: #9333ea; color: white; }
-        .back-link { display: block; text-align: center; margin-top: 30px; color: #888; text-decoration: none; }
+        :root { --main-color: #444; }
+        body { margin: 0; font-family: 'Outfit', sans-serif; background: #000; color: white; overflow: hidden; height: 100vh; display: flex; align-items: center; justify-content: center; }
         
-        /* Lyrics Modal */
-        #lyricsModal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #1e293b; padding: 30px; border-radius: 20px; width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto; z-index: 100; border: 1px solid var(--primary); }
-        .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 90; }
-        .lyrics-text { white-space: pre-wrap; line-height: 1.8; font-size: 0.95rem; text-align: center; }
+        /* 다이나믹 배경 */
+        #bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; transition: 1s; background: radial-gradient(circle at center, var(--main-color) 0%, #000 80%); }
+        
+        .player-card { width: 90%; max-width: 450px; text-align: center; }
+        
+        .album-art { width: 100%; aspect-ratio: 1/1; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); object-fit: cover; margin-bottom: 30px; transition: 0.5s; }
+        
+        .info { margin-bottom: 30px; }
+        .title { font-size: 1.8rem; font-weight: 700; margin-bottom: 5px; }
+        .artist { opacity: 0.6; font-size: 1rem; }
+        
+        /* 가사 창 */
+        .lyrics-container { height: 150px; overflow: hidden; position: relative; margin: 20px 0; mask-image: linear-gradient(to bottom, transparent, #000 20%, #000 80%, transparent); }
+        #lyrics-track { transition: transform 0.5s cubic-bezier(0.2, 0, 0.2, 1); }
+        .lyric-line { padding: 10px 0; font-size: 1.1rem; opacity: 0.3; transition: 0.3s; }
+        .lyric-line.active { opacity: 1; transform: scale(1.1); font-weight: 700; color: #fff; }
+
+        /* 컨트롤러 */
+        audio { width: 100%; filter: invert(1); opacity: 0.8; margin-top: 20px; }
+        .back-btn { position: fixed; top: 20px; left: 20px; color: white; text-decoration: none; opacity: 0.5; font-size: 0.9rem; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Cloud <span>Library</span></h1>
-        <div id="list">불러오는 중...</div>
-        <a href="/" class="back-link">← Hub</a>
+    <div id="bg"></div>
+    <a href="/" class="back-btn">← 뒤로가기</a>
+
+    <div class="player-card">
+        <img id="poster" class="album-art" src="https://via.placeholder.com/500" alt="album">
+        
+        <div class="info">
+            <div id="title" class="title">보관함에서 곡을 선택하세요</div>
+            <div id="artist" class="artist">아티스트 정보 없음</div>
+        </div>
+
+        <div class="lyrics-container">
+            <div id="lyrics-track">
+                <!-- 가사가 여기에 들어갑니다 -->
+                <div class="lyric-line">음악을 재생하면 가사가 나타납니다</div>
+            </div>
+        </div>
+
+        <audio id="audio" controls autoplay crossorigin="anonymous"></audio>
+        
+        <div style="margin-top: 20px;">
+            <button onclick="openList()" style="background: rgba(255,255,255,0.1); border:none; color:white; padding:10px 20px; border-radius:30px; cursor:pointer;">Library List</button>
+        </div>
     </div>
 
-    <div id="overlay" class="overlay" onclick="closeLyrics()"></div>
-    <div id="lyricsModal">
-        <h3 style="margin-bottom: 15px; text-align: center;">가사 보기</h3>
-        <div id="lyricsBox" class="lyrics-text"></div>
-        <button onclick="closeLyrics()" style="margin-top:20px; background:#444;">닫기</button>
+    <!-- 곡 목록 모달 -->
+    <div id="listModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:100; overflow-y:auto; padding:40px 20px;">
+        <h2 style="text-align:center;">Cloud Library</h2>
+        <div id="fileList" style="max-width:500px; margin:0 auto;"></div>
+        <button onclick="closeList()" style="display:block; margin:30px auto; padding:10px 30px; border-radius:20px;">닫기</button>
     </div>
 
     <script>
         const SB_URL = "https://rwmifnnqlbljomwayjzm.supabase.co";
-        const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ3bWlmbm5xbGJsam9td2F5anptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NzI4NDUsImV4cCI6MjA5MTQ0ODg0NX0.HSbt457Z7XdBTFWMTKfjwq8k1jtw6U8SZxN33LISeCw";
-        const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
+        const SB_KEY = localStorage.getItem('SB_KEY') || ""; // 필요시 자동입력되도록 추후 보강
+        const supabaseClient = supabase.createClient(SB_URL, "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ3bWlmbm5xbGJsam9td2F5anptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NzI4NDUsImV4cCI6MjA5MTQ0ODg0NX0.HSbt457Z7XdBTFWMTKfjwq8k1jtw6U8SZxN33LISeCw");
+        
+        const audio = document.getElementById('audio');
+        const poster = document.getElementById('poster');
+        const bg = document.getElementById('bg');
+        const colorThief = new ColorThief();
+        let lyrics = [];
 
-        async function load() {
-            const { data, error } = await supabaseClient.from('media_files').select('*').order('created_at', { ascending: false });
-            const list = document.getElementById('list');
-            if (error || !data) { list.innerText = "로딩 실패"; return; }
-            if (data.length === 0) { list.innerText = "저장된 파일이 없습니다."; return; }
-            
+        async function openList() {
+            document.getElementById('listModal').style.display = 'block';
+            const { data } = await supabaseClient.from('media_files').select('*').order('created_at', {ascending:false});
+            const list = document.getElementById('fileList');
             list.innerHTML = data.map(f => `
-                <div class="item">
-                    <div class="info">
-                        <div class="name">${f.filename}</div>
-                        <div class="meta">${f.type.toUpperCase()} • ${new Date(f.created_at).toLocaleDateString()}</div>
-                    </div>
-                    <div class="btn-group">
-                        <button class="btn-play" onclick="window.open('${f.url}', '_blank')">재생</button>
-                        ${f.mpl_url ? `<button class="btn-lyrics" onclick="viewLyrics('${f.mpl_url}')">가사</button>` : ''}
-                    </div>
+                <div onclick="playSong('${f.url}', '${f.filename}', '${f.mpl_url || ''}')" style="background:#1e293b; padding:15px; margin-bottom:10px; border-radius:12px; cursor:pointer;">
+                    ${f.filename}
                 </div>
             `).join('');
         }
 
-        async function viewLyrics(mplUrl) {
-            const box = document.getElementById('lyricsBox');
-            box.innerText = "가사를 불러오는 중...";
-            document.getElementById('lyricsModal').style.display = 'block';
-            document.getElementById('overlay').style.display = 'block';
+        function closeList() { document.getElementById('listModal').style.display = 'none'; }
+
+        async function playSong(url, name, mplUrl) {
+            closeList();
+            audio.src = url;
+            document.getElementById('title').innerText = name.split('_')[0];
+            document.getElementById('artist').innerText = "MPL Pro User";
             
-            try {
+            // 이미지에서 색상 추출 (CORS 이슈 방지를 위해 프록시나 서버 썸네일 사용 권장)
+            // 임시로 가상의 썸네일 처리 (추후 라즈베리파이에서 썸네일 URL을 DB에 저장하면 더 완벽함)
+            poster.src = `https://rwmifnnqlbljomwayjzm.supabase.co/storage/v1/object/public/media/admin/${name.replace('.mp3', '.webp')}`;
+            
+            poster.onload = () => {
+                const color = colorThief.getColor(poster);
+                document.documentElement.style.setProperty('--main-color', `rgb(${color[0]}, ${color[1]}, ${color[2]})`);
+            };
+
+            // 가사 데이터 가져오기 (MPL)
+            if(mplUrl) {
                 const r = await fetch(mplUrl);
                 const data = await r.json();
-                box.innerText = data.lyrics || "등록된 가사가 없습니다.";
-            } catch (e) { box.innerText = "가사를 불러올 수 없습니다."; }
+                lyrics = data.synced_lyrics || []; // {time, text} 배열 형태 가정
+                renderLyrics();
+            } else {
+                document.getElementById('lyrics-track').innerHTML = '<div class="lyric-line">동기화된 가사가 없습니다</div>';
+            }
         }
 
-        function closeLyrics() {
-            document.getElementById('lyricsModal').style.display = 'none';
-            document.getElementById('overlay').style.display = 'none';
+        function renderLyrics() {
+            const track = document.getElementById('lyrics-track');
+            track.innerHTML = lyrics.map((l, i) => `<div id="lyric-${i}" class="lyric-line">${l.text}</div>`).join('');
         }
 
-        load();
+        audio.ontimeupdate = () => {
+            if(!lyrics.length) return;
+            const curTime = audio.currentTime;
+            let activeIdx = 0;
+            
+            for(let i=0; i<lyrics.length; i++) {
+                if(curTime >= lyrics[i].time) activeIdx = i;
+                else break;
+            }
+
+            document.querySelectorAll('.lyric-line').forEach(el => el.classList.remove('active'));
+            const activeEl = document.getElementById(`lyric-${activeIdx}`);
+            if(activeEl) {
+                activeEl.classList.add('active');
+                const offset = activeIdx * 40; // 가사 한 줄 높이 기준
+                document.getElementById('lyrics-track').style.transform = `translateY(${-offset + 50}px)`;
+            }
+        };
+
+        window.onload = openList;
     </script>
 </body>
 </html>
