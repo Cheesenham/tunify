@@ -186,6 +186,10 @@
     <script>
         const PI_URL = (localStorage.getItem('MPL_URL') || '').replace(/\/$/, '');
         const UID = localStorage.getItem('MPL_USER') || 'admin';
+        const NGROK_HEADERS = { 'ngrok-skip-browser-warning': 'true', 'Content-Type': 'application/json' };
+        function apiFetch(url, opts = {}) {
+            return fetch(url, { ...opts, headers: { ...NGROK_HEADERS, ...(opts.headers || {}) } });
+        }
         const audio = document.getElementById('audio');
 
         let allFiles = [], playlists = [], trackList = [], currentIdx = 0, currentItem = null;
@@ -201,12 +205,12 @@
 
         async function loadData() {
             try {
-                const r = await fetch(`${PI_URL}/api/files`);
+                const r = await apiFetch(`${PI_URL}/api/files`);
                 const d = await r.json();
                 allFiles = d.files || [];
             } catch(e) { allFiles = []; }
             try {
-                const r = await fetch(`${PI_URL}/api/playlists?uid=${UID}`);
+                const r = await apiFetch(`${PI_URL}/api/playlists?uid=${UID}`);
                 const d = await r.json();
                 playlists = d.playlists || [];
             } catch(e) { playlists = []; }
@@ -296,7 +300,7 @@
             lyrics = [];
             if (item.mpl_url) {
                 try {
-                    const r = await fetch(item.mpl_url);
+                    const r = await apiFetch(item.mpl_url);
                     const d = await r.json();
                     lyrics = d.synced_lyrics || [];
                 } catch(e) {}
@@ -342,8 +346,8 @@
         }
         async function saveSync() {
             if (!currentItem) return;
-            await fetch(`${PI_URL}/api/edit`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
+            await apiFetch(`${PI_URL}/api/edit`, {
+                method: 'POST',
                 body: JSON.stringify({ id: currentItem.id, title: currentItem.filename, artist: currentItem.artist, lyrics })
             });
             document.getElementById('save-btn').style.display = 'none';
@@ -356,8 +360,8 @@
             document.getElementById('modal-ok').onclick = async () => {
                 const name = document.getElementById('pName').value.trim();
                 if (!name) return;
-                await fetch(`${PI_URL}/api/playlists`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                await apiFetch(`${PI_URL}/api/playlists`, {
+                    method: 'POST',
                     body: JSON.stringify({ uid: UID, name })
                 });
                 closeModal();
@@ -375,8 +379,8 @@
             `;
             document.getElementById('modal-ok').onclick = async () => {
                 const pid = parseInt(document.getElementById('pSelect').value);
-                await fetch(`${PI_URL}/api/playlists/add`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                await apiFetch(`${PI_URL}/api/playlists/add`, {
+                    method: 'POST',
                     body: JSON.stringify({ uid: UID, playlist_id: pid, file_id: fileId })
                 });
                 closeModal();

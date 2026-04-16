@@ -106,7 +106,7 @@
             if (id === 'admin' && pw === '1234') {
                 // 서버 연결 확인
                 try {
-                    const r = await fetch(`${url}/api/status`, { signal: AbortSignal.timeout(6000) });
+                    const r = await fetch(`${url}/api/status`, { signal: AbortSignal.timeout(6000), headers: { 'ngrok-skip-browser-warning': 'true' } });
                     const d = await r.json();
                     if (!d.success) throw new Error();
                 } catch(e) {

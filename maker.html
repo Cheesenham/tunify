@@ -171,6 +171,11 @@
     </div>
 
     <script>
+        const NGROK_HEADERS = { 'ngrok-skip-browser-warning': 'true', 'Content-Type': 'application/json' };
+        function apiFetch(url, opts = {}) {
+            return fetch(url, { ...opts, headers: { ...NGROK_HEADERS, ...(opts.headers || {}) } });
+        }
+
         let PI_URL = localStorage.getItem('MPL_URL');
         if (!PI_URL) {
             PI_URL = prompt("Pi Server Address (e.g. https://xxx.trycloudflare.com)");
@@ -189,7 +194,7 @@
             const dot = document.getElementById('status-dot');
             const text = document.getElementById('status-text');
             try {
-                const r = await fetch(`${PI_URL}/api/status`, { signal: AbortSignal.timeout(5000) });
+                const r = await apiFetch(`${PI_URL}/api/status`, { signal: AbortSignal.timeout(5000) });
                 const d = await r.json();
                 dot.style.background = '#4ade80';
                 badge.className = 'conn-badge';
@@ -227,9 +232,8 @@
             const box = document.getElementById('music-results');
             box.innerHTML = '<div class="placeholder">Searching...</div>';
             try {
-                const r = await fetch(`${PI_URL}/api/search`, {
+                const r = await apiFetch(`${PI_URL}/api/search`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ query: q, platform: currentPlatform, type: currentType })
                 });
                 if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -266,9 +270,8 @@
             const box = document.getElementById('lyric-preview');
             box.innerHTML = '<div class="placeholder">Searching lyrics...</div>';
             try {
-                const r = await fetch(`${PI_URL}/api/lyrics/search`, {
+                const r = await apiFetch(`${PI_URL}/api/lyrics/search`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ query: q })
                 });
                 const d = await r.json();
@@ -294,9 +297,8 @@
             btn.disabled = true;
             btn.innerText = 'Pi is processing...';
             try {
-                await fetch(`${PI_URL}/api/extract`, {
+                await apiFetch(`${PI_URL}/api/extract`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         url: selectedMusic.url,
                         artist: document.getElementById('lyricQuery').value.split('-')[0].trim(),
