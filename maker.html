@@ -88,6 +88,19 @@
         /* Placeholder text */
         .placeholder { padding: 40px 20px; text-align: center; color: #444; font-size: 0.82rem; }
 
+        /* 작업 큐 */
+        #queue-wrap { margin-top: 4px; }
+        .job-item { background: var(--sc-surface); border: 1px solid var(--sc-border); border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; }
+        .job-thumb { width: 40px; height: 40px; border-radius: 4px; object-fit: cover; background: #333; flex-shrink: 0; }
+        .job-info { flex: 1; min-width: 0; }
+        .job-title { font-size: 0.84rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 6px; }
+        .job-status { font-size: 0.72rem; color: var(--sc-muted); margin-bottom: 5px; }
+        .progress-bar-bg { width: 100%; height: 4px; background: #2a2a2a; border-radius: 2px; overflow: hidden; }
+        .progress-bar-fill { height: 100%; background: var(--sc-orange); border-radius: 2px; transition: width 0.4s ease; }
+        .progress-bar-fill.done { background: #4ade80; }
+        .progress-bar-fill.fail { background: #ef4444; }
+        .job-pct { font-size: 0.72rem; color: var(--sc-muted); min-width: 34px; text-align: right; flex-shrink: 0; }
+
         /* Scrollbar */
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -167,6 +180,12 @@
             <button id="extract-btn" class="gen-btn" onclick="startExtraction()">
                 Generate Track
             </button>
+        </div>
+
+        <!-- 작업 큐 -->
+        <div id="queue-wrap" style="display:none;">
+            <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:1px; color:#555; margin-bottom:10px;">신청 목록</div>
+            <div id="queue-list"></div>
         </div>
     </div>
 
@@ -295,9 +314,9 @@
             if (!selectedMusic) { alert('먼저 트랙을 선택하세요.'); return; }
             const btn = document.getElementById('extract-btn');
             btn.disabled = true;
-            btn.innerText = 'Pi is processing...';
+            btn.innerText = '요청 중...';
             try {
-                await apiFetch(`${PI_URL}/api/extract`, {
+                const r = await apiFetch(`${PI_URL}/api/extract`, {
                     method: 'POST',
                     body: JSON.stringify({
                         url: selectedMusic.url,
@@ -307,18 +326,62 @@
                         uid: UID
                     })
                 });
-                btn.classList.add('success');
-                btn.innerText = '✓ Extraction Started!';
-                setTimeout(() => {
-                    btn.disabled = false;
-                    btn.classList.remove('success');
-                    btn.innerText = 'Generate Track';
-                }, 3000);
+                const d = await r.json();
+                btn.disabled = false;
+                btn.innerText = 'Generate Track';
+                document.getElementById('queue-wrap').style.display = 'block';
+                startPolling();
             } catch(e) {
                 btn.disabled = false;
                 btn.innerText = 'Generate Track';
                 alert('Error: ' + e.message);
             }
+        }
+
+        let pollTimer = null;
+        function startPolling() {
+            if (pollTimer) return;
+            pollTimer = setInterval(pollJobs, 2000);
+            pollJobs();
+        }
+
+        async function pollJobs() {
+            try {
+                const r = await apiFetch(`${PI_URL}/api/jobs`);
+                const d = await r.json();
+                renderQueue(d.jobs || {});
+                // 모두 완료/실패면 폴링 느리게
+                const active = Object.values(d.jobs || {}).filter(j => j.progress < 100 && !j.error);
+                if (active.length === 0) {
+                    clearInterval(pollTimer);
+                    pollTimer = null;
+                }
+            } catch(e) {}
+        }
+
+        function renderQueue(jobs) {
+            const list = document.getElementById('queue-list');
+            const entries = Object.entries(jobs).reverse();
+            if (!entries.length) return;
+            list.innerHTML = entries.map(([id, j]) => {
+                const isDone = j.progress === 100;
+                const isFail = !!j.error;
+                const fillClass = isDone ? 'done' : isFail ? 'fail' : '';
+                const pct = isFail ? 0 : j.progress;
+                return `
+                    <div class="job-item">
+                        <img class="job-thumb" src="${j.thumbnail || ''}" onerror="this.style.background='#444'">
+                        <div class="job-info">
+                            <div class="job-title">${j.title}</div>
+                            <div class="job-status">${j.status}</div>
+                            <div class="progress-bar-bg">
+                                <div class="progress-bar-fill ${fillClass}" style="width:${pct}%"></div>
+                            </div>
+                        </div>
+                        <div class="job-pct">${isDone ? '✓' : isFail ? '✗' : pct + '%'}</div>
+                    </div>
+                `;
+            }).join('');
         }
     </script>
 </body>

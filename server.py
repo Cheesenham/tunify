@@ -15,6 +15,13 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STORAGE_DIR = os.path.join(BASE_DIR, 'mpl_storage')
 os.makedirs(STORAGE_DIR, exist_ok=True)
 
+# yt-dlp 경로 자동 탐색
+import shutil
+YTDLP = shutil.which('yt-dlp') or '/home/lee/.local/bin/yt-dlp'
+
+# 작업 큐 (job_id → {title, progress, status, thumbnail})
+jobs = {}
+
 def check_ffmpeg():
     try:
         subprocess.run(['ffmpeg', '-version'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -49,7 +56,7 @@ def search():
         else:
             search_query = f"ytsearch8:{query}"
 
-        cmd = ['yt-dlp', '--dump-single-json', '--flat-playlist', '--no-warnings', search_query]
+        cmd = [YTDLP, '--dump-single-json', '--flat-playlist', '--no-warnings', search_query]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         res = json.loads(result.stdout)
 
@@ -117,6 +124,9 @@ def extract():
     if not url:
         return jsonify({"success": False, "msg": "URL이 없습니다."})
 
+    job_id = str(int(time.time() * 1000))
+    jobs[job_id] = {"title": url, "progress": 0, "status": "대기 중", "thumbnail": "", "error": None}
+
     def run():
         try:
             timestamp = int(time.time())
@@ -125,16 +135,18 @@ def extract():
             os.makedirs(user_dir, exist_ok=True)
             tmp_path = os.path.join(user_dir, f"mpl_{timestamp}.{ext}")
 
-            # 메타데이터
-            meta_cmd = ['yt-dlp', '--dump-single-json', '--no-warnings', url]
+            # 1. 메타데이터
+            jobs[job_id].update({"progress": 10, "status": "정보 가져오는 중..."})
+            meta_cmd = [YTDLP, '--dump-single-json', '--no-warnings', url]
             meta_res = subprocess.run(meta_cmd, capture_output=True, text=True, timeout=30)
             metadata = json.loads(meta_res.stdout)
             title = metadata.get('title', 'Unknown')
             thumbnail = metadata.get('thumbnail', '')
             uploader = metadata.get('uploader') or metadata.get('channel', '')
+            jobs[job_id].update({"title": title, "thumbnail": thumbnail, "progress": 20, "status": "다운로드 중..."})
 
-            # 다운로드
-            dl_cmd = ['yt-dlp', '--no-warnings', '-o', tmp_path]
+            # 2. 다운로드
+            dl_cmd = [YTDLP, '--no-warnings', '-o', tmp_path]
             if mode == 'music':
                 dl_cmd += ['-x', '--audio-format', 'mp3', '--audio-quality', '0']
                 if check_ffmpeg():
@@ -146,10 +158,11 @@ def extract():
                     dl_cmd += ['-f', 'best[ext=mp4]']
             dl_cmd.append(url)
             subprocess.run(dl_cmd, check=True, timeout=300)
+            jobs[job_id].update({"progress": 80, "status": "저장 중..."})
 
             filename = os.path.basename(tmp_path)
 
-            # 가사 JSON 저장
+            # 3. 가사 JSON 저장
             lrc_filename = None
             lyrics_data = selected_lyrics or []
             if lyrics_data:
@@ -162,35 +175,36 @@ def extract():
                         "synced_lyrics": lyrics_data
                     }, f, ensure_ascii=False)
 
-            # 파일 목록 DB (JSON)
+            # 4. DB 기록
             db_path = os.path.join(STORAGE_DIR, 'db.json')
             db = []
             if os.path.exists(db_path):
                 with open(db_path, 'r', encoding='utf-8') as f:
                     db = json.load(f)
-
             db.append({
-                "id": timestamp,
-                "uid": uid,
-                "filename": title,
-                "file": filename,
-                "lrc_file": lrc_filename,
-                "thumbnail": thumbnail,
-                "artist": artist or uploader,
-                "type": mode,
-                "created_at": timestamp
+                "id": timestamp, "uid": uid, "filename": title,
+                "file": filename, "lrc_file": lrc_filename,
+                "thumbnail": thumbnail, "artist": artist or uploader,
+                "type": mode, "created_at": timestamp
             })
-
             with open(db_path, 'w', encoding='utf-8') as f:
                 json.dump(db, f, ensure_ascii=False, indent=2)
 
+            jobs[job_id].update({"progress": 100, "status": "완료 ✓"})
             print(f"✅ 완료: {title}")
 
         except Exception as e:
+            jobs[job_id].update({"progress": 0, "status": f"실패: {str(e)[:60]}", "error": str(e)})
             print(f"❌ 추출 실패: {e}")
 
     threading.Thread(target=run, daemon=True).start()
-    return jsonify({"success": True, "msg": "추출 시작됨. 잠시 후 Player에서 확인하세요."})
+    return jsonify({"success": True, "job_id": job_id, "msg": "추출 시작됨."})
+
+
+# --- 작업 큐 조회 ---
+@app.route('/api/jobs')
+def get_jobs():
+    return jsonify({"success": True, "jobs": jobs})
 
 # --- 파일 목록 ---
 @app.route('/api/files')
