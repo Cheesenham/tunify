@@ -3,86 +3,146 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MPL PRO - Raspberry Pi Hub</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <title>Tunify</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        :root { --primary: #ef4444; --accent: #f87171; --bg: #0f172a; }
-        body { font-family: 'Outfit', sans-serif; background: var(--bg); color: white; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; padding: 40px; width: 100%; max-width: 450px; }
-        h1 { text-align: center; font-weight: 800; font-size: 2.5rem; margin-bottom: 30px; }
-        h1 span { color: var(--primary); }
-        .input-group { margin-bottom: 20px; }
-        label { display: block; margin-bottom: 8px; font-size: 0.9rem; color: #94a3b8; }
-        input { width: 100%; padding: 14px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; color: white; font-size: 1rem; }
-        button { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; transition: 0.3s; margin-top: 10px; }
-        button:hover { background: var(--accent); transform: translateY(-2px); }
-        .hidden { display: none; }
-        .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
-        .menu-item { background: rgba(255,255,255,0.05); padding: 25px; border-radius: 20px; text-align: center; cursor: pointer; transition: 0.3s; }
-        .menu-item:hover { background: var(--primary); transform: translateY(-5px); }
-        .menu-item span { font-size: 2.5rem; display: block; margin-bottom: 10px; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', sans-serif; background: #1a1a1a; color: white; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+
+        .card { width: 100%; max-width: 400px; padding: 40px; background: #222; border: 1px solid #2a2a2a; border-radius: 12px; }
+
+        .logo { text-align: center; margin-bottom: 32px; }
+        .logo-text { font-size: 2rem; font-weight: 700; letter-spacing: -1px; }
+        .logo-text span { color: #ff5500; }
+        .logo-sub { font-size: 0.8rem; color: #555; margin-top: 4px; }
+
+        .field { margin-bottom: 16px; }
+        label { display: block; font-size: 0.75rem; color: #666; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.8px; }
+        input { width: 100%; padding: 11px 14px; background: #111; border: 1px solid #2a2a2a; border-radius: 6px; color: white; font-size: 0.9rem; font-family: inherit; outline: none; transition: 0.15s; }
+        input:focus { border-color: #ff5500; }
+
+        .connect-btn { width: 100%; padding: 13px; background: #ff5500; color: white; border: none; border-radius: 6px; font-weight: 700; font-size: 0.95rem; cursor: pointer; font-family: inherit; transition: 0.15s; margin-top: 8px; }
+        .connect-btn:hover { background: #e04d00; }
+
+        .hub { display: none; }
+        .hub-title { text-align: center; margin-bottom: 8px; }
+        .hub-title h2 { font-size: 1.3rem; font-weight: 700; }
+        .hub-conn { text-align: center; font-size: 0.75rem; color: #4ade80; margin-bottom: 28px; }
+        .hub-url { color: #666; font-size: 0.72rem; margin-top: 2px; }
+
+        .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+        .menu-item { background: #2a2a2a; border: 1px solid #333; padding: 24px 16px; border-radius: 8px; text-align: center; cursor: pointer; transition: 0.15s; }
+        .menu-item:hover { border-color: #ff5500; background: rgba(255,85,0,0.08); transform: translateY(-2px); }
+        .menu-item .icon { font-size: 2rem; margin-bottom: 8px; }
+        .menu-item strong { font-size: 0.9rem; display: block; }
+
+        .logout-btn { width: 100%; padding: 11px; background: none; border: 1px solid #333; color: #666; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 0.85rem; transition: 0.15s; }
+        .logout-btn:hover { border-color: #555; color: #aaa; }
+
+        .err { color: #ef4444; font-size: 0.8rem; margin-top: 8px; text-align: center; display: none; }
     </style>
 </head>
 <body>
 
-    <div id="loginSection" class="glass">
-        <h1>MPL <span>PI</span></h1>
-        <div class="input-group">
-            <label>Pi Server Address</label>
-            <input type="text" id="piUrl" placeholder="https://xxx.trycloudflare.com">
+    <!-- 로그인 -->
+    <div class="card" id="loginCard">
+        <div class="logo">
+            <div class="logo-text">Tun<span>ify</span></div>
+            <div class="logo-sub">Pi Music Server</div>
         </div>
-        <div class="input-group">
+
+        <div class="field">
+            <label>Pi Server Address</label>
+            <input type="text" id="piUrl" placeholder="stiffly-rogue-parkway.ngrok-free.dev">
+        </div>
+        <div class="field">
             <label>User ID</label>
             <input type="text" id="userId" value="admin">
         </div>
-        <div class="input-group">
+        <div class="field">
             <label>Password</label>
-            <input type="password" id="userPw" value="1234">
+            <input type="password" id="userPw" value="1234" onkeydown="if(event.key==='Enter') login()">
         </div>
-        <button onclick="login()">Connect to Pi</button>
+        <button class="connect-btn" onclick="login()">Connect</button>
+        <div class="err" id="err-msg"></div>
     </div>
 
-    <div id="hubSection" class="glass hidden">
-        <h1>Control <span>Hub</span></h1>
-        <div style="text-align: center; color: #4ade80; font-size: 0.8rem; margin-bottom: 20px;">Raspberry Pi 4B Connected</div>
+    <!-- 허브 -->
+    <div class="card hub" id="hubCard">
+        <div class="hub-title">
+            <h2>Tun<span style="color:#ff5500;">ify</span></h2>
+        </div>
+        <div class="hub-conn">
+            ● Connected
+            <div class="hub-url" id="hub-url"></div>
+        </div>
+
         <div class="menu-grid">
             <div class="menu-item" onclick="location.href='/maker.html'">
-                <span>🎬</span>
+                <div class="icon">🎬</div>
                 <strong>Maker</strong>
             </div>
             <div class="menu-item" onclick="location.href='/player.html'">
-                <span>🎵</span>
+                <div class="icon">🎵</div>
                 <strong>Player</strong>
             </div>
-            <div class="menu-item" style="background: #ef4444; grid-column: span 2;" onclick="logout()">
-                <strong>Logout / Exit</strong>
-            </div>
         </div>
+        <button class="logout-btn" onclick="logout()">Disconnect</button>
     </div>
 
     <script>
         async function login() {
-            const piUrl = document.getElementById('piUrl').value;
-            const id = document.getElementById('userId').value;
+            let url = document.getElementById('piUrl').value.trim();
+            const id = document.getElementById('userId').value.trim();
             const pw = document.getElementById('userPw').value;
-            
-            if(!piUrl.startsWith('http')) return alert("올바른 서버 주소를 입력하세요.");
-            
-            if(id === 'admin' && pw === '1234') {
+            const err = document.getElementById('err-msg');
+
+            if (!url) { showErr('서버 주소를 입력하세요.'); return; }
+
+            // https:// 자동 추가
+            if (!url.startsWith('http')) url = 'https://' + url;
+            if (url.endsWith('/')) url = url.slice(0, -1);
+
+            if (id === 'admin' && pw === '1234') {
+                // 서버 연결 확인
+                try {
+                    const r = await fetch(`${url}/api/status`, { signal: AbortSignal.timeout(6000) });
+                    const d = await r.json();
+                    if (!d.success) throw new Error();
+                } catch(e) {
+                    showErr('Pi 서버에 연결할 수 없습니다.');
+                    return;
+                }
                 localStorage.setItem('MPL_USER', id);
-                localStorage.setItem('MPL_URL', piUrl);
-                showHub();
-            } else alert("로그인 실패");
+                localStorage.setItem('MPL_URL', url);
+                showHub(url);
+            } else {
+                showErr('아이디 또는 비밀번호가 틀렸습니다.');
+            }
         }
 
-        function showHub() {
-            document.getElementById('loginSection').classList.add('hidden');
-            document.getElementById('hubSection').classList.remove('hidden');
+        function showHub(url) {
+            document.getElementById('loginCard').style.display = 'none';
+            document.getElementById('hubCard').style.display = 'block';
+            document.getElementById('hub-url').innerText = url;
         }
 
-        function logout() { localStorage.clear(); location.reload(); }
+        function logout() {
+            localStorage.clear();
+            location.reload();
+        }
 
-        window.onload = () => { if(localStorage.getItem('MPL_USER')) showHub(); }
+        function showErr(msg) {
+            const el = document.getElementById('err-msg');
+            el.innerText = msg;
+            el.style.display = 'block';
+        }
+
+        window.onload = () => {
+            if (localStorage.getItem('MPL_USER')) {
+                showHub(localStorage.getItem('MPL_URL') || '');
+            }
+        };
     </script>
 </body>
 </html>
