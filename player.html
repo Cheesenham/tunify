@@ -207,7 +207,11 @@
             try {
                 const r = await apiFetch(`${PI_URL}/api/files`);
                 const d = await r.json();
-                allFiles = d.files || [];
+                allFiles = (d.files || []).map(f => ({
+                    ...f,
+                    url: PI_URL + f.path,
+                    mpl_url: f.lrc_path ? PI_URL + f.lrc_path : null
+                }));
             } catch(e) { allFiles = []; }
             try {
                 const r = await apiFetch(`${PI_URL}/api/playlists?uid=${UID}`);

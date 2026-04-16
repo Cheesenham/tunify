@@ -214,10 +214,9 @@ def get_files():
         return jsonify({"success": True, "files": []})
     with open(db_path, 'r', encoding='utf-8') as f:
         db = json.load(f)
-    base = request.host_url.rstrip('/')
     for item in db:
-        item['url'] = f"{base}/api/media/{item['uid']}/{item['file']}"
-        item['mpl_url'] = f"{base}/api/media/{item['uid']}/{item['lrc_file']}" if item.get('lrc_file') else None
+        item['path'] = f"/api/media/{item['uid']}/{item['file']}"
+        item['lrc_path'] = f"/api/media/{item['uid']}/{item['lrc_file']}" if item.get('lrc_file') else None
     return jsonify({"success": True, "files": sorted(db, key=lambda x: -x['created_at'])})
 
 # --- 파일 서빙 ---
