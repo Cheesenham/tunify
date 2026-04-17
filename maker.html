@@ -328,7 +328,12 @@
                 });
                 const d = await r.json();
                 btn.disabled = false;
-                btn.innerText = 'Generate Track';
+                if (d.count > 1) {
+                    btn.innerText = `플레이리스트 ${d.count}곡 추출 중...`;
+                    setTimeout(() => { btn.innerText = 'Generate Track'; }, 3000);
+                } else {
+                    btn.innerText = 'Generate Track';
+                }
                 document.getElementById('queue-wrap').style.display = 'block';
                 startPolling();
             } catch(e) {

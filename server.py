@@ -112,22 +112,10 @@ def lyrics_search():
         return jsonify({"success": False, "msg": str(e)}), 500
 
 # --- 추출 + 로컬 저장 ---
-@app.route('/api/extract', methods=['POST'])
-def extract():
-    data = request.json
-    url = data.get('url')
-    mode = data.get('mode', 'music')
-    uid = data.get('uid', 'admin')
-    artist = data.get('artist', '')
-    selected_lyrics = data.get('selected_lyrics')
+_dl_sem = threading.Semaphore(2)
 
-    if not url:
-        return jsonify({"success": False, "msg": "URL이 없습니다."})
-
-    job_id = str(int(time.time() * 1000))
-    jobs[job_id] = {"title": url, "progress": 0, "status": "대기 중", "thumbnail": "", "error": None}
-
-    def run():
+def _run_single(url, job_id, mode, uid, artist, selected_lyrics):
+    with _dl_sem:
         try:
             timestamp = int(time.time())
             ext = 'mp3' if mode == 'music' else 'mp4'
@@ -135,18 +123,16 @@ def extract():
             os.makedirs(user_dir, exist_ok=True)
             tmp_path = os.path.join(user_dir, f"mpl_{timestamp}.{ext}")
 
-            # 1. 메타데이터
             jobs[job_id].update({"progress": 10, "status": "정보 가져오는 중..."})
-            meta_cmd = [YTDLP, '--dump-single-json', '--no-warnings', url]
+            meta_cmd = [YTDLP, '--dump-single-json', '--no-playlist', '--no-warnings', url]
             meta_res = subprocess.run(meta_cmd, capture_output=True, text=True, timeout=30)
             metadata = json.loads(meta_res.stdout)
             title = metadata.get('title', 'Unknown')
-            thumbnail = metadata.get('thumbnail', '')
+            thumbnail = metadata.get('thumbnail', '') or (metadata.get('thumbnails') or [{}])[-1].get('url', '')
             uploader = metadata.get('uploader') or metadata.get('channel', '')
             jobs[job_id].update({"title": title, "thumbnail": thumbnail, "progress": 20, "status": "다운로드 중..."})
 
-            # 2. 다운로드
-            dl_cmd = [YTDLP, '--no-warnings', '-o', tmp_path]
+            dl_cmd = [YTDLP, '--no-warnings', '--no-playlist', '-o', tmp_path]
             if mode == 'music':
                 dl_cmd += ['-x', '--audio-format', 'mp3', '--audio-quality', '0']
                 if check_ffmpeg():
@@ -161,43 +147,72 @@ def extract():
             jobs[job_id].update({"progress": 80, "status": "저장 중..."})
 
             filename = os.path.basename(tmp_path)
-
-            # 3. 가사 JSON 저장
             lrc_filename = None
             lyrics_data = selected_lyrics or []
             if lyrics_data:
                 lrc_filename = f"mpl_{timestamp}.json"
-                lrc_path = os.path.join(user_dir, lrc_filename)
-                with open(lrc_path, 'w', encoding='utf-8') as f:
-                    json.dump({
-                        "title": title,
-                        "artist": artist or uploader,
-                        "synced_lyrics": lyrics_data
-                    }, f, ensure_ascii=False)
+                with open(os.path.join(user_dir, lrc_filename), 'w', encoding='utf-8') as f:
+                    json.dump({"title": title, "artist": artist or uploader, "synced_lyrics": lyrics_data}, f, ensure_ascii=False)
 
-            # 4. DB 기록
             db_path = os.path.join(STORAGE_DIR, 'db.json')
             db = []
             if os.path.exists(db_path):
                 with open(db_path, 'r', encoding='utf-8') as f:
                     db = json.load(f)
-            db.append({
-                "id": timestamp, "uid": uid, "filename": title,
-                "file": filename, "lrc_file": lrc_filename,
-                "thumbnail": thumbnail, "artist": artist or uploader,
-                "type": mode, "created_at": timestamp
-            })
+            db.append({"id": timestamp, "uid": uid, "filename": title, "file": filename,
+                        "lrc_file": lrc_filename, "thumbnail": thumbnail,
+                        "artist": artist or uploader, "type": mode, "created_at": timestamp})
             with open(db_path, 'w', encoding='utf-8') as f:
                 json.dump(db, f, ensure_ascii=False, indent=2)
 
             jobs[job_id].update({"progress": 100, "status": "완료 ✓"})
             print(f"✅ 완료: {title}")
-
         except Exception as e:
             jobs[job_id].update({"progress": 0, "status": f"실패: {str(e)[:60]}", "error": str(e)})
             print(f"❌ 추출 실패: {e}")
 
-    threading.Thread(target=run, daemon=True).start()
+@app.route('/api/extract', methods=['POST'])
+def extract():
+    data = request.json
+    url = data.get('url')
+    mode = data.get('mode', 'music')
+    uid = data.get('uid', 'admin')
+    artist = data.get('artist', '')
+    selected_lyrics = data.get('selected_lyrics')
+
+    if not url:
+        return jsonify({"success": False, "msg": "URL이 없습니다."})
+
+    # 플레이리스트 감지
+    try:
+        detect_res = subprocess.run(
+            [YTDLP, '--flat-playlist', '--dump-single-json', '--no-warnings', url],
+            capture_output=True, text=True, timeout=20
+        )
+        meta = json.loads(detect_res.stdout)
+        entries = [e for e in meta.get('entries', []) if e]
+    except:
+        meta = {}
+        entries = []
+
+    if entries:
+        job_ids = []
+        for i, entry in enumerate(entries):
+            entry_url = entry.get('url') or entry.get('webpage_url') or ''
+            if not entry_url.startswith('http'):
+                continue
+            jid = str(int(time.time() * 1000) + i)
+            jobs[jid] = {"title": entry.get('title', f'Track {i+1}'), "progress": 0,
+                         "status": "대기 중", "thumbnail": entry.get('thumbnail', '') or '', "error": None}
+            threading.Thread(target=_run_single, args=(entry_url, jid, mode, uid, artist, None), daemon=True).start()
+            job_ids.append(jid)
+        return jsonify({"success": True, "job_ids": job_ids, "count": len(job_ids),
+                        "msg": f"플레이리스트 {len(job_ids)}곡 추출 시작"})
+
+    # 단일 트랙
+    job_id = str(int(time.time() * 1000))
+    jobs[job_id] = {"title": url, "progress": 0, "status": "대기 중", "thumbnail": "", "error": None}
+    threading.Thread(target=_run_single, args=(url, job_id, mode, uid, artist, selected_lyrics), daemon=True).start()
     return jsonify({"success": True, "job_id": job_id, "msg": "추출 시작됨."})
 
 
