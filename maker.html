@@ -283,6 +283,22 @@
                 if (!r.ok) throw new Error('HTTP ' + r.status);
                 const data = await r.json();
                 if (!data.results?.length) { box.innerHTML = '<div class="placeholder">No results found</div>'; return; }
+
+                // SoundCloud 플리 차단
+                const isSCPlaylist = data.playlist_title && q.includes('soundcloud.com');
+                if (isSCPlaylist) {
+                    const ytSearch = encodeURIComponent(data.playlist_title);
+                    box.innerHTML = `<div style="padding:16px 8px;">
+                        <div style="color:#ef4444;font-size:0.85rem;font-weight:600;margin-bottom:8px;">⚠ SoundCloud 플레이리스트 미지원</div>
+                        <div style="color:#666;font-size:0.78rem;margin-bottom:12px;">SoundCloud 플리는 다운로드할 수 없어요.<br>YouTube 플리로 변환 후 URL을 가져오세요.</div>
+                        <a href="https://www.youtube.com/results?search_query=${ytSearch}" target="_blank"
+                           style="display:inline-block;padding:7px 14px;background:#333;color:#ccc;border-radius:6px;text-decoration:none;font-size:0.78rem;">
+                           YouTube에서 "${data.playlist_title}" 검색 →
+                        </a>
+                    </div>`;
+                    return;
+                }
+
                 currentPlaylistUrl = data.playlist_title ? q : '';
                 const header = data.playlist_title
                     ? `<div style="padding:8px 4px 10px;border-bottom:1px solid #2a2a2a;margin-bottom:8px;">
