@@ -22,6 +22,30 @@ YTDLP = shutil.which('yt-dlp') or '/home/lee/.local/bin/yt-dlp'
 # 작업 큐 (job_id → {title, progress, status, thumbnail})
 jobs = {}
 
+import re as _re
+def _parse_lrc(lrc_str):
+    lines = []
+    for line in lrc_str.splitlines():
+        m = _re.match(r'\[(\d+):(\d+(?:\.\d+)?)\](.*)', line.strip())
+        if m:
+            mins, secs, text = m.groups()
+            lines.append({"time": round(int(mins)*60 + float(secs), 2), "text": text.strip()})
+    return lines
+
+def _auto_fetch_lyrics(title, artist=''):
+    try:
+        q = urllib.parse.quote(f"{artist} {title}".strip())
+        req = urllib.request.Request(f"https://lrclib.net/api/search?q={q}",
+                                     headers={'User-Agent': 'Tunify/1.0'})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            results = json.loads(r.read())
+        for item in results:
+            if item.get('syncedLyrics'):
+                return _parse_lrc(item['syncedLyrics'])
+    except:
+        pass
+    return []
+
 def check_ffmpeg():
     try:
         subprocess.run(['ffmpeg', '-version'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -125,7 +149,7 @@ def lyrics_search():
 # --- 추출 + 로컬 저장 ---
 _pl_sem = threading.Semaphore(128)
 
-def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False):
+def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, auto_lyrics=False):
     ctx = _pl_sem if use_sem else __import__('contextlib').nullcontext()
     with ctx:
         try:
@@ -161,6 +185,9 @@ def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False):
             filename = os.path.basename(tmp_path)
             lrc_filename = None
             lyrics_data = selected_lyrics or []
+            if not lyrics_data and auto_lyrics:
+                jobs[job_id].update({"status": "가사 검색 중..."})
+                lyrics_data = _auto_fetch_lyrics(title, artist or uploader)
             if lyrics_data:
                 lrc_filename = f"mpl_{timestamp}.json"
                 with open(os.path.join(user_dir, lrc_filename), 'w', encoding='utf-8') as f:
@@ -191,6 +218,7 @@ def extract():
     uid = data.get('uid', 'admin')
     artist = data.get('artist', '')
     selected_lyrics = data.get('selected_lyrics')
+    auto_lyrics = data.get('auto_lyrics', False)
 
     if not url:
         return jsonify({"success": False, "msg": "URL이 없습니다."})
@@ -198,8 +226,8 @@ def extract():
     # 플레이리스트 감지
     try:
         detect_res = subprocess.run(
-            [YTDLP, '--flat-playlist', '--dump-single-json', '--no-warnings', url],
-            capture_output=True, text=True, timeout=20
+            [YTDLP, '--flat-playlist', '--dump-single-json', '--no-warnings', '--yes-playlist', url],
+            capture_output=True, text=True, timeout=30
         )
         meta = json.loads(detect_res.stdout)
         entries = [e for e in meta.get('entries', []) if e]
@@ -212,11 +240,18 @@ def extract():
         for i, entry in enumerate(entries):
             entry_url = entry.get('url') or entry.get('webpage_url') or ''
             if not entry_url.startswith('http'):
+                entry_url = f"https://soundcloud.com/{entry_url}" if entry_url else ''
+            if not entry_url:
                 continue
+            title = entry.get('title') or f'Track {i+1}'
             jid = str(int(time.time() * 1000) + i)
-            jobs[jid] = {"title": entry.get('title', f'Track {i+1}'), "progress": 0,
+            jobs[jid] = {"title": title, "progress": 0,
                          "status": "대기 중", "thumbnail": entry.get('thumbnail', '') or '', "error": None}
-            threading.Thread(target=_run_single, args=(entry_url, jid, mode, uid, artist, None, True), daemon=True).start()
+            threading.Thread(target=_run_single,
+                             kwargs=dict(url=entry_url, job_id=jid, mode=mode, uid=uid,
+                                         artist=artist, selected_lyrics=None,
+                                         use_sem=True, auto_lyrics=auto_lyrics),
+                             daemon=True).start()
             job_ids.append(jid)
         return jsonify({"success": True, "job_ids": job_ids, "count": len(job_ids),
                         "msg": f"플레이리스트 {len(job_ids)}곡 추출 시작"})
@@ -224,7 +259,11 @@ def extract():
     # 단일 트랙
     job_id = str(int(time.time() * 1000))
     jobs[job_id] = {"title": url, "progress": 0, "status": "대기 중", "thumbnail": "", "error": None}
-    threading.Thread(target=_run_single, args=(url, job_id, mode, uid, artist, selected_lyrics), daemon=True).start()
+    threading.Thread(target=_run_single,
+                     kwargs=dict(url=url, job_id=job_id, mode=mode, uid=uid,
+                                 artist=artist, selected_lyrics=selected_lyrics,
+                                 auto_lyrics=auto_lyrics),
+                     daemon=True).start()
     return jsonify({"success": True, "job_id": job_id, "msg": "추출 시작됨."})
 
 
