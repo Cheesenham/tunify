@@ -258,7 +258,13 @@
                 if (!r.ok) throw new Error('HTTP ' + r.status);
                 const data = await r.json();
                 if (!data.results?.length) { box.innerHTML = '<div class="placeholder">No results found</div>'; return; }
-                box.innerHTML = data.results.map(f => `
+                const header = data.playlist_title
+                    ? `<div style="padding:8px 4px 10px;border-bottom:1px solid #2a2a2a;margin-bottom:8px;">
+                         <div style="font-size:0.75rem;color:#666;text-transform:uppercase;letter-spacing:1px;">Playlist</div>
+                         <div style="font-size:0.95rem;font-weight:700;margin-top:3px;">${data.playlist_title}</div>
+                         <div style="font-size:0.72rem;color:#555;margin-top:2px;">${data.results.length}곡</div>
+                       </div>` : '';
+                box.innerHTML = header + data.results.map(f => `
                     <div class="result-item" onclick='selectMusic(this, ${JSON.stringify(f).replace(/'/g,"&#39;")})'>
                         <img class="result-thumb" src="${f.thumbnail || ''}" onerror="this.style.background='#444'; this.src=''">
                         <div class="result-info">

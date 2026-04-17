@@ -60,20 +60,31 @@ def search():
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         res = json.loads(result.stdout)
 
+        playlist_title = res.get('title') or res.get('uploader') or ''
+        is_url = query.startswith('http')
         entries = res.get('entries', [res])
         output = []
         for e in entries:
             if not e:
                 continue
+            url = e.get('url') or e.get('webpage_url') or ''
+            title = e.get('title') or e.get('track')
+            if not title and url:
+                slug = url.rstrip('/').split('/')[-1]
+                title = slug.replace('-', ' ').title()
+            thumbnail = (e.get('thumbnail') or
+                         (e.get('thumbnails') or [{}])[-1].get('url', '') or
+                         e.get('artwork_url', ''))
             output.append({
                 "id": e.get('id'),
-                "url": e.get('url') or e.get('webpage_url'),
-                "title": e.get('title', 'Unknown'),
-                "thumbnail": e.get('thumbnail') or (e.get('thumbnails') or [{}])[-1].get('url', ''),
+                "url": url,
+                "title": title or 'Unknown',
+                "thumbnail": thumbnail,
                 "uploader": e.get('uploader') or e.get('channel', ''),
                 "is_playlist": e.get('_type') == 'playlist'
             })
-        return jsonify({"success": True, "results": output})
+        return jsonify({"success": True, "results": output,
+                        "playlist_title": playlist_title if is_url and res.get('entries') else ""})
     except Exception as e:
         return jsonify({"success": False, "msg": str(e)}), 500
 
