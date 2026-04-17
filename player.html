@@ -102,6 +102,88 @@
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+        /* Now Playing Screen */
+        .np-screen {
+            position: fixed; inset: 0; z-index: 200;
+            background: #111;
+            display: flex; flex-direction: column;
+            transform: translateY(100%);
+            transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .np-screen.open { transform: translateY(0); }
+
+        .np-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px 20px;
+            flex-shrink: 0;
+        }
+        .np-down-btn {
+            background: none; border: none; color: var(--sc-muted); cursor: pointer;
+            font-size: 1.4rem; padding: 4px 8px; border-radius: 4px; transition: 0.12s;
+        }
+        .np-down-btn:hover { color: white; }
+        .np-label { font-size: 0.75rem; color: var(--sc-muted); text-transform: uppercase; letter-spacing: 1px; }
+
+        .np-body {
+            flex: 1; overflow: hidden; display: flex; flex-direction: column;
+            align-items: center; padding: 0 24px 24px;
+            gap: 20px;
+        }
+
+        .np-art {
+            width: min(260px, 60vw); height: min(260px, 60vw);
+            border-radius: 12px; object-fit: cover; background: #2a2a2a;
+            box-shadow: 0 16px 40px rgba(0,0,0,0.6);
+            flex-shrink: 0;
+        }
+
+        .np-meta { text-align: center; width: 100%; }
+        .np-song { font-size: 1.25rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .np-artist { font-size: 0.9rem; color: var(--sc-orange); margin-top: 4px; }
+
+        .np-lyrics-wrap {
+            flex: 1; width: 100%; overflow-y: auto; min-height: 0;
+            background: #1a1a1a; border-radius: 10px;
+            padding: 16px 12px;
+        }
+        .np-lyrics-wrap::-webkit-scrollbar { width: 3px; }
+        .np-lyrics-wrap::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+        .np-lyric-line {
+            padding: 7px 10px; border-radius: 6px;
+            font-size: 0.9rem; color: #555;
+            text-align: center; transition: color 0.25s, background 0.25s;
+            cursor: pointer; line-height: 1.5;
+        }
+        .np-lyric-line:hover { color: #888; }
+        .np-lyric-line.active {
+            color: white; font-weight: 600;
+            background: rgba(255,85,0,0.12);
+        }
+        .np-no-lyrics { text-align: center; color: #444; font-size: 0.85rem; padding: 20px; }
+
+        .np-progress-wrap {
+            width: 100%; flex-shrink: 0;
+        }
+        .np-waveform {
+            width: 100%; height: 4px; background: #2a2a2a; border-radius: 2px;
+            cursor: pointer; position: relative; margin-bottom: 8px;
+        }
+        .np-waveform-fill {
+            height: 100%; background: var(--sc-orange); width: 0%; border-radius: 2px;
+            pointer-events: none; transition: width 0.1s linear;
+        }
+        .np-times { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--sc-muted); }
+
+        .np-controls {
+            display: flex; align-items: center; gap: 20px; flex-shrink: 0;
+            padding-bottom: 8px;
+        }
+        .np-ctrl { background: none; border: none; color: var(--sc-muted); cursor: pointer; font-size: 1.3rem; padding: 4px 8px; transition: 0.12s; border-radius: 4px; }
+        .np-ctrl:hover { color: white; }
+        .np-play { width: 54px; height: 54px; border-radius: 50%; background: var(--sc-orange); color: white; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer; transition: 0.15s; }
+        .np-play:hover { background: #e04d00; transform: scale(1.05); }
     </style>
 </head>
 <body>
@@ -134,8 +216,41 @@
         </main>
     </div>
 
+    <!-- Now Playing Full Screen -->
+    <div class="np-screen" id="np-screen">
+        <div class="np-header">
+            <button class="np-down-btn" onclick="closeNowPlaying()">⌄</button>
+            <div class="np-label">Now Playing</div>
+            <div style="width:40px;"></div>
+        </div>
+        <div class="np-body">
+            <img id="np-art" class="np-art" src="" onerror="this.style.background='#2a2a2a'">
+            <div class="np-meta">
+                <div class="np-song" id="np-song">—</div>
+                <div class="np-artist" id="np-artist-label">—</div>
+            </div>
+            <div class="np-lyrics-wrap" id="np-lyrics-wrap">
+                <div class="np-no-lyrics">가사가 없습니다.</div>
+            </div>
+            <div class="np-progress-wrap">
+                <div class="np-waveform" onclick="npSeekTo(event)">
+                    <div class="np-waveform-fill" id="np-waveform-fill"></div>
+                </div>
+                <div class="np-times">
+                    <span id="np-cur">0:00</span>
+                    <span id="np-dur">0:00</span>
+                </div>
+            </div>
+            <div class="np-controls">
+                <button class="np-ctrl" onclick="prevTrack()">⏮</button>
+                <button class="np-play" id="np-play-btn" onclick="togglePlay()">▶</button>
+                <button class="np-ctrl" onclick="nextTrack()">⏭</button>
+            </div>
+        </div>
+    </div>
+
     <div class="player-bar">
-        <div class="now-playing">
+        <div class="now-playing" onclick="openNowPlaying()" style="cursor:pointer;">
             <img id="now-thumb" class="now-thumb" src="" alt="" onerror="this.src=''">
             <div>
                 <div id="now-title" class="now-title" style="color:var(--sc-muted);">No track selected</div>
@@ -193,7 +308,7 @@
         const audio = document.getElementById('audio');
 
         let allFiles = [], playlists = [], trackList = [], currentIdx = 0, currentItem = null;
-        let lyrics = [], activeView = 'all';
+        let lyrics = [], activeView = 'all', syncOffset = 0;
 
         // --- View ---
         function setView(v) {
@@ -299,9 +414,14 @@
             document.getElementById('now-title').style.color = 'white';
             document.getElementById('now-artist').innerText = item.artist || '—';
             document.getElementById('play-btn').innerText = '⏸';
+            document.getElementById('np-play-btn').innerText = '⏸';
+            document.getElementById('np-art').src = item.thumbnail || '';
+            document.getElementById('np-song').innerText = item.filename;
+            document.getElementById('np-artist-label').innerText = item.artist || '—';
             document.querySelectorAll('.track-item').forEach(el => el.classList.remove('playing'));
             document.getElementById('track-' + item.id)?.classList.add('playing');
             lyrics = [];
+            syncOffset = 0;
             if (item.mpl_url) {
                 try {
                     const r = await apiFetch(item.mpl_url);
@@ -309,11 +429,19 @@
                     lyrics = d.synced_lyrics || [];
                 } catch(e) {}
             }
+            renderNPLyrics();
         }
 
         function togglePlay() {
-            if (audio.paused) { audio.play(); document.getElementById('play-btn').innerText = '⏸'; }
-            else { audio.pause(); document.getElementById('play-btn').innerText = '▶'; }
+            if (audio.paused) {
+                audio.play();
+                document.getElementById('play-btn').innerText = '⏸';
+                document.getElementById('np-play-btn').innerText = '⏸';
+            } else {
+                audio.pause();
+                document.getElementById('play-btn').innerText = '▶';
+                document.getElementById('np-play-btn').innerText = '▶';
+            }
         }
         function prevTrack() { if (currentIdx > 0) playSong(trackList[currentIdx - 1], currentIdx - 1); }
         function nextTrack() { if (currentIdx < trackList.length - 1) playSong(trackList[currentIdx + 1], currentIdx + 1); }
@@ -335,7 +463,51 @@
             document.getElementById('waveform-fill').style.width = pct + '%';
             document.getElementById('cur-time').innerText = fmtTime(audio.currentTime);
             document.getElementById('dur-time').innerText = fmtTime(audio.duration);
+            // NP screen
+            document.getElementById('np-waveform-fill').style.width = pct + '%';
+            document.getElementById('np-cur').innerText = fmtTime(audio.currentTime);
+            document.getElementById('np-dur').innerText = fmtTime(audio.duration);
+            // Lyrics highlight
+            if (lyrics.length) {
+                const t = audio.currentTime + syncOffset;
+                let active = -1;
+                for (let i = 0; i < lyrics.length; i++) {
+                    if (lyrics[i].time <= t) active = i; else break;
+                }
+                const lines = document.querySelectorAll('.np-lyric-line');
+                lines.forEach((el, i) => {
+                    const wasActive = el.classList.contains('active');
+                    el.classList.toggle('active', i === active);
+                    if (i === active && !wasActive) {
+                        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                    }
+                });
+            }
         };
+
+        // --- Now Playing Screen ---
+        function openNowPlaying() {
+            if (!currentItem) return;
+            document.getElementById('np-screen').classList.add('open');
+        }
+        function closeNowPlaying() {
+            document.getElementById('np-screen').classList.remove('open');
+        }
+        function npSeekTo(e) {
+            if (!audio.duration) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;
+        }
+        function renderNPLyrics() {
+            const wrap = document.getElementById('np-lyrics-wrap');
+            if (!lyrics.length) {
+                wrap.innerHTML = '<div class="np-no-lyrics">가사가 없습니다.</div>';
+                return;
+            }
+            wrap.innerHTML = lyrics.map((l, i) =>
+                `<div class="np-lyric-line" data-i="${i}" onclick="audio.currentTime=${l.time}">${l.text || '♪'}</div>`
+            ).join('');
+        }
 
         // --- Sync ---
         function toggleSync() {
@@ -345,15 +517,18 @@
             document.getElementById('nav-sync').classList.toggle('active', !visible);
         }
         function adjustSync(v) {
-            lyrics = lyrics.map(l => ({ ...l, time: +(l.time + v).toFixed(2) }));
+            syncOffset += v;
             document.getElementById('save-btn').style.display = 'inline-block';
         }
         async function saveSync() {
             if (!currentItem) return;
+            const adjusted = lyrics.map(l => ({ ...l, time: +(l.time + syncOffset).toFixed(2) }));
             await apiFetch(`${PI_URL}/api/edit`, {
                 method: 'POST',
-                body: JSON.stringify({ id: currentItem.id, title: currentItem.filename, artist: currentItem.artist, lyrics })
+                body: JSON.stringify({ id: currentItem.id, title: currentItem.filename, artist: currentItem.artist, lyrics: adjusted })
             });
+            lyrics = adjusted;
+            syncOffset = 0;
             document.getElementById('save-btn').style.display = 'none';
         }
 
