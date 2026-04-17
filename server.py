@@ -149,8 +149,9 @@ def lyrics_search():
 # --- 추출 + 로컬 저장 ---
 _pl_sem = threading.Semaphore(128)
 
-def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, auto_lyrics=False):
+def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, auto_lyrics=False, playlist_index=None):
     ctx = _pl_sem if use_sem else __import__('contextlib').nullcontext()
+    pl_args = ['--playlist-items', str(playlist_index)] if playlist_index else []
     with ctx:
         try:
             timestamp = int(time.time())
@@ -160,20 +161,20 @@ def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, 
             tmp_path = os.path.join(user_dir, f"mpl_{timestamp}.{ext}")
 
             jobs[job_id].update({"progress": 10, "status": "정보 가져오는 중..."})
-            meta_cmd = [YTDLP, '--dump-single-json', '--no-warnings', url]
+            meta_cmd = [YTDLP, '--dump-single-json', '--no-warnings'] + pl_args + [url]
             meta_res = subprocess.run(meta_cmd, capture_output=True, text=True, timeout=30)
             raw = meta_res.stdout.strip()
             if not raw:
-                raise Exception(f"yt-dlp 메타 실패: {meta_res.stderr.strip()[:120]}")
+                raise Exception(f"메타 실패: {meta_res.stderr.strip()[:120]}")
             metadata = json.loads(raw)
             if 'entries' in metadata:
-                metadata = metadata['entries'][0] or metadata
+                metadata = next((e for e in metadata['entries'] if e), metadata)
             title = metadata.get('title', 'Unknown')
             thumbnail = metadata.get('thumbnail', '') or (metadata.get('thumbnails') or [{}])[-1].get('url', '')
             uploader = metadata.get('uploader') or metadata.get('channel', '')
             jobs[job_id].update({"title": title, "thumbnail": thumbnail, "progress": 20, "status": "다운로드 중..."})
 
-            dl_cmd = [YTDLP, '--no-warnings', '-o', tmp_path]
+            dl_cmd = [YTDLP, '--no-warnings'] + pl_args + ['-o', tmp_path]
             if mode == 'music':
                 dl_cmd += ['-x', '--audio-format', 'mp3', '--audio-quality', '0']
                 if check_ffmpeg():
@@ -244,18 +245,15 @@ def extract():
         job_ids = []
         for i, entry in enumerate(entries):
             entry_url = entry.get('url') or entry.get('webpage_url') or ''
-            if not entry_url.startswith('http'):
-                entry_url = f"https://soundcloud.com/{entry_url}" if entry_url else ''
-            if not entry_url:
-                continue
             title = entry.get('title') or f'Track {i+1}'
             jid = str(int(time.time() * 1000) + i)
             jobs[jid] = {"title": title, "progress": 0,
                          "status": "대기 중", "thumbnail": entry.get('thumbnail', '') or '', "error": None}
             threading.Thread(target=_run_single,
-                             kwargs=dict(url=entry_url, job_id=jid, mode=mode, uid=uid,
+                             kwargs=dict(url=url, job_id=jid, mode=mode, uid=uid,
                                          artist=artist, selected_lyrics=None,
-                                         use_sem=True, auto_lyrics=auto_lyrics),
+                                         use_sem=True, auto_lyrics=auto_lyrics,
+                                         playlist_index=i+1),
                              daemon=True).start()
             job_ids.append(jid)
         return jsonify({"success": True, "job_ids": job_ids, "count": len(job_ids),
