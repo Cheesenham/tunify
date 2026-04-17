@@ -112,10 +112,11 @@ def lyrics_search():
         return jsonify({"success": False, "msg": str(e)}), 500
 
 # --- 추출 + 로컬 저장 ---
-_dl_sem = threading.Semaphore(2)
+_pl_sem = threading.Semaphore(128)
 
-def _run_single(url, job_id, mode, uid, artist, selected_lyrics):
-    with _dl_sem:
+def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False):
+    ctx = _pl_sem if use_sem else __import__('contextlib').nullcontext()
+    with ctx:
         try:
             timestamp = int(time.time())
             ext = 'mp3' if mode == 'music' else 'mp4'
@@ -204,7 +205,7 @@ def extract():
             jid = str(int(time.time() * 1000) + i)
             jobs[jid] = {"title": entry.get('title', f'Track {i+1}'), "progress": 0,
                          "status": "대기 중", "thumbnail": entry.get('thumbnail', '') or '', "error": None}
-            threading.Thread(target=_run_single, args=(entry_url, jid, mode, uid, artist, None), daemon=True).start()
+            threading.Thread(target=_run_single, args=(entry_url, jid, mode, uid, artist, None, True), daemon=True).start()
             job_ids.append(jid)
         return jsonify({"success": True, "job_ids": job_ids, "count": len(job_ids),
                         "msg": f"플레이리스트 {len(job_ids)}곡 추출 시작"})
