@@ -160,15 +160,20 @@ def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, 
             tmp_path = os.path.join(user_dir, f"mpl_{timestamp}.{ext}")
 
             jobs[job_id].update({"progress": 10, "status": "정보 가져오는 중..."})
-            meta_cmd = [YTDLP, '--dump-single-json', '--no-playlist', '--no-warnings', url]
+            meta_cmd = [YTDLP, '--dump-single-json', '--no-warnings', url]
             meta_res = subprocess.run(meta_cmd, capture_output=True, text=True, timeout=30)
-            metadata = json.loads(meta_res.stdout)
+            raw = meta_res.stdout.strip()
+            if not raw:
+                raise Exception(f"yt-dlp 메타 실패: {meta_res.stderr.strip()[:120]}")
+            metadata = json.loads(raw)
+            if 'entries' in metadata:
+                metadata = metadata['entries'][0] or metadata
             title = metadata.get('title', 'Unknown')
             thumbnail = metadata.get('thumbnail', '') or (metadata.get('thumbnails') or [{}])[-1].get('url', '')
             uploader = metadata.get('uploader') or metadata.get('channel', '')
             jobs[job_id].update({"title": title, "thumbnail": thumbnail, "progress": 20, "status": "다운로드 중..."})
 
-            dl_cmd = [YTDLP, '--no-warnings', '--no-playlist', '-o', tmp_path]
+            dl_cmd = [YTDLP, '--no-warnings', '-o', tmp_path]
             if mode == 'music':
                 dl_cmd += ['-x', '--audio-format', 'mp3', '--audio-quality', '0']
                 if check_ffmpeg():
