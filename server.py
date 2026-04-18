@@ -121,27 +121,26 @@ def lyrics_search():
         return jsonify({"success": False, "msg": "검색어가 없습니다."})
     try:
         url = f"https://lrclib.net/api/search?q={urllib.parse.quote(query)}"
-        req = urllib.request.Request(url, headers={"User-Agent": "MPL/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "Tunify/1.0"})
         res = json.loads(urllib.request.urlopen(req, timeout=8).read())
+        results = []
         for item in res:
             synced = item.get('syncedLyrics')
-            if synced:
-                lyrics = []
-                for line in synced.splitlines():
-                    line = line.strip()
-                    if not line or not line.startswith('['):
-                        continue
-                    try:
-                        bracket_end = line.index(']')
-                        time_str = line[1:bracket_end]
-                        text = line[bracket_end + 1:].strip()
-                        if ':' in time_str:
-                            parts = time_str.split(':')
-                            seconds = float(parts[0]) * 60 + float(parts[1])
-                            lyrics.append({"time": round(seconds, 2), "text": text})
-                    except:
-                        continue
-                return jsonify({"success": True, "lyrics": lyrics})
+            if not synced:
+                continue
+            parsed = _parse_lrc(synced)
+            if parsed:
+                results.append({
+                    "title": item.get('trackName', ''),
+                    "artist": item.get('artistName', ''),
+                    "album": item.get('albumName', ''),
+                    "duration": item.get('duration', 0),
+                    "lyrics": parsed
+                })
+            if len(results) >= 8:
+                break
+        if results:
+            return jsonify({"success": True, "results": results})
         return jsonify({"success": False, "msg": "싱크 가사를 찾지 못했습니다."})
     except Exception as e:
         return jsonify({"success": False, "msg": str(e)}), 500
@@ -154,11 +153,11 @@ def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, 
     pl_args = ['--playlist-items', str(playlist_index)] if playlist_index else []
     with ctx:
         try:
+            import glob as _glob
             timestamp = int(time.time())
-            ext = 'mp3' if mode == 'music' else 'mp4'
             user_dir = os.path.join(STORAGE_DIR, uid)
             os.makedirs(user_dir, exist_ok=True)
-            tmp_path = os.path.join(user_dir, f"mpl_{timestamp}.{ext}")
+            tmp_base = os.path.join(user_dir, f"mpl_{timestamp}")  # 확장자 없음
 
             jobs[job_id].update({"progress": 5, "status": "SC 제목 조회 중..." if convert_sc else "정보 가져오는 중..."})
 
@@ -196,7 +195,7 @@ def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, 
             uploader = metadata.get('uploader') or metadata.get('channel', '')
             jobs[job_id].update({"title": title, "thumbnail": thumbnail, "progress": 20, "status": "다운로드 중..."})
 
-            dl_cmd = [YTDLP, '--no-warnings'] + pl_args + ['-o', tmp_path]
+            dl_cmd = [YTDLP, '--no-warnings'] + pl_args + ['-o', tmp_base + '.%(ext)s']
             if mode == 'music':
                 dl_cmd += ['-x', '--audio-format', 'mp3', '--audio-quality', '0']
                 if check_ffmpeg():
@@ -207,10 +206,16 @@ def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, 
                 else:
                     dl_cmd += ['-f', 'best[ext=mp4]']
             dl_cmd.append(url)
-            subprocess.run(dl_cmd, check=True, timeout=300)
+            res = subprocess.run(dl_cmd, capture_output=True, text=True, timeout=300)
+            if res.returncode != 0:
+                raise Exception(res.stderr.strip().split('\n')[-1][:100])
             jobs[job_id].update({"progress": 80, "status": "저장 중..."})
 
-            filename = os.path.basename(tmp_path)
+            found = _glob.glob(tmp_base + '.*')
+            if not found:
+                raise Exception("다운로드 파일을 찾을 수 없습니다.")
+            actual_path = found[0]
+            filename = os.path.basename(actual_path)
             lrc_filename = None
             lyrics_data = selected_lyrics or []
             if not lyrics_data and auto_lyrics:
