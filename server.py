@@ -149,7 +149,7 @@ def lyrics_search():
 # --- 추출 + 로컬 저장 ---
 _pl_sem = threading.Semaphore(128)
 
-def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, auto_lyrics=False, playlist_index=None):
+def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, auto_lyrics=False, playlist_index=None, convert_sc=False):
     ctx = _pl_sem if use_sem else __import__('contextlib').nullcontext()
     pl_args = ['--playlist-items', str(playlist_index)] if playlist_index else []
     with ctx:
@@ -159,6 +159,28 @@ def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, 
             user_dir = os.path.join(STORAGE_DIR, uid)
             os.makedirs(user_dir, exist_ok=True)
             tmp_path = os.path.join(user_dir, f"mpl_{timestamp}.{ext}")
+
+            jobs[job_id].update({"progress": 5, "status": "SC 제목 조회 중..." if convert_sc else "정보 가져오는 중..."})
+
+            # SC→YT 변환: SC에서 실제 제목 먼저 조회 후 YouTube 검색
+            if convert_sc:
+                sc_meta_cmd = [YTDLP, '--dump-single-json', '--no-warnings'] + pl_args + [url]
+                sc_res = subprocess.run(sc_meta_cmd, capture_output=True, text=True, timeout=30)
+                sc_raw = sc_res.stdout.strip()
+                if sc_raw:
+                    sc_meta = json.loads(sc_raw)
+                    if 'entries' in sc_meta:
+                        sc_meta = next((e for e in sc_meta['entries'] if e), {})
+                    real_title = sc_meta.get('title') or ''
+                    real_artist = sc_meta.get('uploader') or sc_meta.get('channel') or artist or ''
+                else:
+                    real_title = ''
+                    real_artist = artist or ''
+                if not real_title:
+                    raise Exception("SC에서 제목을 가져올 수 없습니다.")
+                jobs[job_id].update({"title": real_title, "progress": 10, "status": f"YouTube 검색: {real_title[:30]}..."})
+                url = f"ytsearch1:{real_artist} {real_title}".strip()
+                pl_args = []
 
             jobs[job_id].update({"progress": 10, "status": "정보 가져오는 중..."})
             meta_cmd = [YTDLP, '--dump-single-json', '--no-warnings'] + pl_args + [url]
@@ -252,12 +274,12 @@ def extract():
             jobs[jid] = {"title": title, "progress": 0,
                          "status": "대기 중", "thumbnail": entry.get('thumbnail', '') or '', "error": None}
             if is_sc and convert:
-                # SC → YouTube 변환: ytsearch로 동일 곡 검색 후 다운로드
-                yt_url = f"ytsearch1:{uploader} {title}".strip()
+                # SC→YT: 원본 SC URL + 인덱스로 제목 조회 → YouTube 검색
                 threading.Thread(target=_run_single,
-                                 kwargs=dict(url=yt_url, job_id=jid, mode=mode, uid=uid,
-                                             artist=uploader, selected_lyrics=None,
-                                             use_sem=True, auto_lyrics=auto_lyrics),
+                                 kwargs=dict(url=url, job_id=jid, mode=mode, uid=uid,
+                                             artist=artist, selected_lyrics=None,
+                                             use_sem=True, auto_lyrics=auto_lyrics,
+                                             playlist_index=i+1, convert_sc=True),
                                  daemon=True).start()
             else:
                 threading.Thread(target=_run_single,
