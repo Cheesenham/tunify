@@ -148,76 +148,73 @@ def lyrics_search():
 # --- 추출 + 로컬 저장 ---
 _pl_sem = threading.Semaphore(128)
 
-def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, auto_lyrics=False, playlist_index=None, convert_sc=False):
+def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, auto_lyrics=False, convert_sc=False):
     ctx = _pl_sem if use_sem else __import__('contextlib').nullcontext()
-    pl_args = ['--playlist-items', str(playlist_index)] if playlist_index else []
     with ctx:
         try:
             import glob as _glob
-            file_id = int(job_id)  # job_id는 ms타임스탬프, 플레이리스트도 고유값
+            file_id = int(job_id)
             user_dir = os.path.join(STORAGE_DIR, uid)
             os.makedirs(user_dir, exist_ok=True)
-            tmp_base = os.path.join(user_dir, f"mpl_{file_id}")  # 확장자 없음
+            tmp_base = os.path.join(user_dir, f"mpl_{file_id}")
 
-            jobs[job_id].update({"progress": 5, "status": "SC 제목 조회 중..." if convert_sc else "정보 가져오는 중..."})
+            jobs[job_id].update({"progress": 5, "status": "SC 제목 조회 중..." if convert_sc else "다운로드 준비 중..."})
 
-            # SC→YT 변환: SC에서 실제 제목 먼저 조회 후 YouTube 검색
+            # SC→YT: --print으로 실제 제목 추출 (개별 트랙 URL 직접 사용)
             if convert_sc:
-                sc_meta_cmd = [YTDLP, '--dump-single-json', '--no-warnings'] + pl_args + [url]
-                sc_res = subprocess.run(sc_meta_cmd, capture_output=True, text=True, timeout=30)
-                sc_raw = sc_res.stdout.strip()
-                if sc_raw:
-                    sc_meta = json.loads(sc_raw)
-                    if 'entries' in sc_meta:
-                        sc_meta = next((e for e in sc_meta['entries'] if e), {})
-                    real_title = sc_meta.get('title') or ''
-                    real_artist = sc_meta.get('uploader') or sc_meta.get('channel') or artist or ''
-                else:
-                    real_title = ''
-                    real_artist = artist or ''
-                if not real_title:
-                    raise Exception("SC에서 제목을 가져올 수 없습니다.")
-                jobs[job_id].update({"title": real_title, "progress": 10, "status": f"YouTube 검색: {real_title[:30]}..."})
+                sc_cmd = [YTDLP, '--no-warnings', '--skip-download',
+                          '--print', '%(title)s\t%(uploader)s', url]
+                sc_res = subprocess.run(sc_cmd, capture_output=True, text=True, timeout=30)
+                line = sc_res.stdout.strip().split('\n')[0]
+                parts = line.split('\t')
+                real_title = parts[0].strip() if parts else ''
+                real_artist = parts[1].strip() if len(parts) > 1 else ''
+                if not real_title or real_title == 'NA':
+                    raise Exception(f"SC 제목 조회 실패: {sc_res.stderr.strip()[:80]}")
+                jobs[job_id].update({"title": real_title, "progress": 15,
+                                     "status": f"YT 검색: {real_title[:25]}..."})
                 url = f"ytsearch1:{real_artist} {real_title}".strip()
-                pl_args = []
 
-            jobs[job_id].update({"progress": 10, "status": "정보 가져오는 중..."})
-            meta_cmd = [YTDLP, '--dump-single-json', '--no-warnings'] + pl_args + [url]
-            meta_res = subprocess.run(meta_cmd, capture_output=True, text=True, timeout=30)
-            raw = meta_res.stdout.strip()
-            if not raw:
-                raise Exception(f"메타 실패: {meta_res.stderr.strip()[:120]}")
-            metadata = json.loads(raw)
-            if 'entries' in metadata:
-                metadata = next((e for e in metadata['entries'] if e), metadata)
-            title = metadata.get('title', 'Unknown')
-            thumbnail = metadata.get('thumbnail', '') or (metadata.get('thumbnails') or [{}])[-1].get('url', '')
-            uploader = metadata.get('uploader') or metadata.get('channel', '')
-            # 메타데이터에서 실제 URL 추출 → 다운로드 일관성 보장
-            actual_url = metadata.get('webpage_url') or metadata.get('url') or url
-            jobs[job_id].update({"title": title, "thumbnail": thumbnail, "progress": 20, "status": "다운로드 중..."})
-
-            dl_cmd = [YTDLP, '--no-warnings'] + ['-o', tmp_base + '.%(ext)s']
+            # 다운로드 + --print로 실제 메타데이터 동시 캡처
+            jobs[job_id].update({"progress": 20, "status": "다운로드 중..."})
+            PRINT_TMPL = '%(title)s\t%(uploader)s\t%(thumbnail)s'
+            dl_cmd = [YTDLP, '--no-warnings',
+                      '--print', PRINT_TMPL,
+                      '-o', tmp_base + '.%(ext)s']
             if mode == 'music':
                 dl_cmd += ['-x', '--audio-format', 'mp3', '--audio-quality', '0']
                 if check_ffmpeg():
                     dl_cmd += ['--embed-thumbnail', '--add-metadata']
             else:
-                if check_ffmpeg():
-                    dl_cmd += ['-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]']
-                else:
-                    dl_cmd += ['-f', 'best[ext=mp4]']
-            dl_cmd.append(actual_url)
+                dl_cmd += ['-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]' if check_ffmpeg() else 'best[ext=mp4]']
+            dl_cmd.append(url)
+
             res = subprocess.run(dl_cmd, capture_output=True, text=True, timeout=300)
             if res.returncode != 0:
-                raise Exception(res.stderr.strip().split('\n')[-1][:100])
-            jobs[job_id].update({"progress": 80, "status": "저장 중..."})
+                err = (res.stderr.strip().split('\n') or [''])[-1]
+                raise Exception(err[:120])
 
+            # --print 출력 파싱
+            meta_line = res.stdout.strip().split('\n')[0] if res.stdout.strip() else ''
+            parts = [p.strip() for p in meta_line.split('\t')]
+            def _val(i): return parts[i] if len(parts) > i and parts[i] not in ('', 'NA', 'None') else ''
+            title     = _val(0) or jobs[job_id].get('title') or 'Unknown'
+            uploader  = _val(1)
+            thumbnail = _val(2)
+            jobs[job_id].update({"title": title, "thumbnail": thumbnail, "progress": 85, "status": "저장 중..."})
+
+            # 오디오 파일 탐색 (audio ext 우선, webm/info.json 등 제외)
+            AUDIO_EXTS = {'.mp3', '.m4a', '.ogg', '.opus', '.flac', '.wav', '.aac'}
+            VIDEO_EXTS = {'.mp4', '.mkv', '.webm'}
             found = _glob.glob(tmp_base + '.*')
-            if not found:
-                raise Exception("다운로드 파일을 찾을 수 없습니다.")
-            actual_path = found[0]
-            filename = os.path.basename(actual_path)
+            audio = [f for f in found if os.path.splitext(f)[1].lower() in AUDIO_EXTS]
+            video = [f for f in found if os.path.splitext(f)[1].lower() in VIDEO_EXTS]
+            picked = audio[0] if audio else (video[0] if video else None)
+            if not picked:
+                raise Exception(f"파일 없음 (glob: {[os.path.basename(f) for f in found]})")
+            filename = os.path.basename(picked)
+
+            # 가사
             lrc_filename = None
             lyrics_data = selected_lyrics or []
             if not lyrics_data and auto_lyrics:
@@ -226,24 +223,26 @@ def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, 
             if lyrics_data:
                 lrc_filename = f"mpl_{file_id}.json"
                 with open(os.path.join(user_dir, lrc_filename), 'w', encoding='utf-8') as f:
-                    json.dump({"title": title, "artist": artist or uploader, "synced_lyrics": lyrics_data}, f, ensure_ascii=False)
+                    json.dump({"title": title, "artist": artist or uploader,
+                               "synced_lyrics": lyrics_data}, f, ensure_ascii=False)
 
+            # DB 저장
             db_path = os.path.join(STORAGE_DIR, 'db.json')
             db = []
             if os.path.exists(db_path):
                 with open(db_path, 'r', encoding='utf-8') as f:
                     db = json.load(f)
             db.append({"id": file_id, "uid": uid, "filename": title, "file": filename,
-                        "lrc_file": lrc_filename, "thumbnail": thumbnail,
-                        "artist": artist or uploader, "type": mode, "created_at": file_id})
+                       "lrc_file": lrc_filename, "thumbnail": thumbnail,
+                       "artist": artist or uploader, "type": mode, "created_at": file_id})
             with open(db_path, 'w', encoding='utf-8') as f:
                 json.dump(db, f, ensure_ascii=False, indent=2)
 
             jobs[job_id].update({"progress": 100, "status": "완료 ✓"})
-            print(f"✅ 완료: {title}")
+            print(f"✅ {title}")
         except Exception as e:
-            jobs[job_id].update({"progress": 0, "status": f"실패: {str(e)[:60]}", "error": str(e)})
-            print(f"❌ 추출 실패: {e}")
+            jobs[job_id].update({"progress": 0, "status": f"실패: {str(e)[:80]}", "error": str(e)})
+            print(f"❌ {e}")
 
 @app.route('/api/extract', methods=['POST'])
 def extract():
@@ -276,25 +275,19 @@ def extract():
         job_ids = []
         for i, entry in enumerate(entries):
             title = entry.get('title') or f'Track {i+1}'
-            uploader = entry.get('uploader') or entry.get('channel') or ''
+            # 개별 트랙 URL 추출 (flat-playlist에서 이미 보유)
+            track_url = entry.get('webpage_url') or entry.get('url') or ''
+            if not track_url.startswith('http'):
+                track_url = url  # fallback: playlist URL (구버전 yt-dlp)
             jid = str(int(time.time() * 1000) + i)
             jobs[jid] = {"title": title, "progress": 0,
                          "status": "대기 중", "thumbnail": entry.get('thumbnail', '') or '', "error": None}
-            if is_sc and convert:
-                # SC→YT: 원본 SC URL + 인덱스로 제목 조회 → YouTube 검색
-                threading.Thread(target=_run_single,
-                                 kwargs=dict(url=url, job_id=jid, mode=mode, uid=uid,
-                                             artist=artist, selected_lyrics=None,
-                                             use_sem=True, auto_lyrics=auto_lyrics,
-                                             playlist_index=i+1, convert_sc=True),
-                                 daemon=True).start()
-            else:
-                threading.Thread(target=_run_single,
-                                 kwargs=dict(url=url, job_id=jid, mode=mode, uid=uid,
-                                             artist=artist, selected_lyrics=None,
-                                             use_sem=True, auto_lyrics=auto_lyrics,
-                                             playlist_index=i+1),
-                                 daemon=True).start()
+            threading.Thread(target=_run_single,
+                             kwargs=dict(url=track_url, job_id=jid, mode=mode, uid=uid,
+                                         artist=artist, selected_lyrics=None,
+                                         use_sem=True, auto_lyrics=auto_lyrics,
+                                         convert_sc=(is_sc and convert)),
+                             daemon=True).start()
             job_ids.append(jid)
         return jsonify({"success": True, "job_ids": job_ids, "count": len(job_ids),
                         "msg": f"{'SC→YT 변환' if is_sc and convert else '플레이리스트'} {len(job_ids)}곡 추출 시작"})
@@ -305,7 +298,7 @@ def extract():
     threading.Thread(target=_run_single,
                      kwargs=dict(url=url, job_id=job_id, mode=mode, uid=uid,
                                  artist=artist, selected_lyrics=selected_lyrics,
-                                 auto_lyrics=auto_lyrics),
+                                 auto_lyrics=auto_lyrics, convert_sc=False),
                      daemon=True).start()
     return jsonify({"success": True, "job_id": job_id, "msg": "추출 시작됨."})
 
