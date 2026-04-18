@@ -615,8 +615,21 @@
             document.getElementById('modal-box').style.display = 'none';
         }
 
-        // --- Lyrics Search ---
+        // --- Lyrics Search (lrclib.net 직접 호출) ---
         let lrcResults = [], lrcSelectedIdx = -1;
+
+        function parseLrc(lrcStr) {
+            const lines = [];
+            for (const line of lrcStr.split('\n')) {
+                const m = line.trim().match(/^\[(\d+):(\d+(?:\.\d+)?)\](.*)/);
+                if (m) {
+                    const t = parseInt(m[1]) * 60 + parseFloat(m[2]);
+                    const text = m[3].trim();
+                    lines.push({ time: Math.round(t * 100) / 100, text });
+                }
+            }
+            return lines;
+        }
 
         function openLyricsSearch() {
             const q = currentItem ? `${currentItem.filename} ${currentItem.artist || ''}`.trim() : '';
@@ -641,17 +654,26 @@
             lrcResults = [];
             lrcSelectedIdx = -1;
             try {
-                const r = await apiFetch(`${PI_URL}/api/lyrics/search`, {
-                    method: 'POST',
-                    body: JSON.stringify({ query: q })
+                const r = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(q)}`, {
+                    headers: { 'Lrclib-Client': 'Tunify/1.0' }
                 });
-                const d = await r.json();
-                if (d.success && d.results && d.results.length) {
-                    lrcResults = d.results;
+                const data = await r.json();
+                lrcResults = data
+                    .filter(item => item.syncedLyrics)
+                    .slice(0, 8)
+                    .map(item => ({
+                        title: item.trackName || '',
+                        artist: item.artistName || '',
+                        album: item.albumName || '',
+                        duration: item.duration || 0,
+                        lyrics: parseLrc(item.syncedLyrics)
+                    }))
+                    .filter(r => r.lyrics.length > 0);
+                if (lrcResults.length) {
                     lrcSelectedIdx = 0;
                     renderLrcResults();
                 } else {
-                    resultsEl.innerHTML = '<div class="lrc-status">가사를 찾지 못했습니다.<br><small>다른 검색어를 시도해 보세요.</small></div>';
+                    resultsEl.innerHTML = '<div class="lrc-status">싱크 가사를 찾지 못했습니다.<br><small>다른 검색어를 시도해 보세요.</small></div>';
                 }
             } catch(e) {
                 resultsEl.innerHTML = `<div class="lrc-status">오류: ${e.message}</div>`;

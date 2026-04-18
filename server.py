@@ -193,9 +193,11 @@ def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, 
             title = metadata.get('title', 'Unknown')
             thumbnail = metadata.get('thumbnail', '') or (metadata.get('thumbnails') or [{}])[-1].get('url', '')
             uploader = metadata.get('uploader') or metadata.get('channel', '')
+            # 메타데이터에서 실제 URL 추출 → 다운로드 일관성 보장
+            actual_url = metadata.get('webpage_url') or metadata.get('url') or url
             jobs[job_id].update({"title": title, "thumbnail": thumbnail, "progress": 20, "status": "다운로드 중..."})
 
-            dl_cmd = [YTDLP, '--no-warnings'] + pl_args + ['-o', tmp_base + '.%(ext)s']
+            dl_cmd = [YTDLP, '--no-warnings'] + ['-o', tmp_base + '.%(ext)s']
             if mode == 'music':
                 dl_cmd += ['-x', '--audio-format', 'mp3', '--audio-quality', '0']
                 if check_ffmpeg():
@@ -205,7 +207,7 @@ def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, 
                     dl_cmd += ['-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]']
                 else:
                     dl_cmd += ['-f', 'best[ext=mp4]']
-            dl_cmd.append(url)
+            dl_cmd.append(actual_url)
             res = subprocess.run(dl_cmd, capture_output=True, text=True, timeout=300)
             if res.returncode != 0:
                 raise Exception(res.stderr.strip().split('\n')[-1][:100])
