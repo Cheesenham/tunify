@@ -166,8 +166,6 @@ def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, 
                       '-o', tmp_base + '.%(ext)s']
             if mode == 'music':
                 dl_cmd += ['-x', '--audio-format', 'mp3', '--audio-quality', '0']
-                if check_ffmpeg():
-                    dl_cmd += ['--embed-thumbnail', '--add-metadata']
             else:
                 dl_cmd += ['-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]' if check_ffmpeg() else 'best[ext=mp4]']
             dl_cmd.append(url)
