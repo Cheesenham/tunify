@@ -284,17 +284,16 @@
                 const data = await r.json();
                 if (!data.results?.length) { box.innerHTML = '<div class="placeholder">No results found</div>'; return; }
 
-                // SoundCloud 플리 차단
+                // SoundCloud 플리: YouTube 변환 다운로드
                 const isSCPlaylist = data.playlist_title && q.includes('soundcloud.com');
                 if (isSCPlaylist) {
-                    const ytSearch = encodeURIComponent(data.playlist_title);
-                    box.innerHTML = `<div style="padding:16px 8px;">
-                        <div style="color:#ef4444;font-size:0.85rem;font-weight:600;margin-bottom:8px;">⚠ SoundCloud 플레이리스트 미지원</div>
-                        <div style="color:#666;font-size:0.78rem;margin-bottom:12px;">SoundCloud 플리는 다운로드할 수 없어요.<br>YouTube 플리로 변환 후 URL을 가져오세요.</div>
-                        <a href="https://www.youtube.com/results?search_query=${ytSearch}" target="_blank"
-                           style="display:inline-block;padding:7px 14px;background:#333;color:#ccc;border-radius:6px;text-decoration:none;font-size:0.78rem;">
-                           YouTube에서 "${data.playlist_title}" 검색 →
-                        </a>
+                    currentPlaylistUrl = q;
+                    box.innerHTML = `<div style="padding:14px 8px;">
+                        <div style="font-size:0.72rem;color:#666;text-transform:uppercase;letter-spacing:1px;">SoundCloud Playlist</div>
+                        <div style="font-size:0.95rem;font-weight:700;margin:4px 0;">${data.playlist_title}</div>
+                        <div style="font-size:0.72rem;color:#555;margin-bottom:12px;">${data.results.length}곡 감지됨</div>
+                        <div style="font-size:0.78rem;color:#888;margin-bottom:10px;">SoundCloud 직접 다운로드 불가 — 각 곡을 YouTube에서 자동 검색해 다운로드합니다.</div>
+                        <button class="s-btn" style="width:100%;padding:10px;" onclick="downloadSCAsYT()">YouTube로 변환 후 전체 다운로드 (${data.results.length}곡)</button>
                     </div>`;
                     return;
                 }
@@ -375,6 +374,25 @@
                 })
             });
             return r.json();
+        }
+
+        async function downloadSCAsYT() {
+            if (!currentPlaylistUrl) return;
+            const btn = event.currentTarget;
+            btn.disabled = true; btn.innerText = '변환 중...';
+            try {
+                const r = await apiFetch(`${PI_URL}/api/extract`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        url: currentPlaylistUrl, mode: currentMode, uid: UID,
+                        auto_lyrics: lyricsMode === 'auto', convert_sc: true
+                    })
+                });
+                const d = await r.json();
+                btn.innerText = `${d.count}곡 YouTube 다운로드 중`;
+                document.getElementById('queue-wrap').style.display = 'block';
+                startPolling();
+            } catch(e) { btn.disabled = false; btn.innerText = '다시 시도'; alert(e.message); }
         }
 
         async function downloadAll() {

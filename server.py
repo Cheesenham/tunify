@@ -242,22 +242,33 @@ def extract():
         entries = []
 
     if entries:
+        is_sc = 'soundcloud.com' in url
+        convert = data.get('convert_sc', False)
         job_ids = []
         for i, entry in enumerate(entries):
-            entry_url = entry.get('url') or entry.get('webpage_url') or ''
             title = entry.get('title') or f'Track {i+1}'
+            uploader = entry.get('uploader') or entry.get('channel') or ''
             jid = str(int(time.time() * 1000) + i)
             jobs[jid] = {"title": title, "progress": 0,
                          "status": "대기 중", "thumbnail": entry.get('thumbnail', '') or '', "error": None}
-            threading.Thread(target=_run_single,
-                             kwargs=dict(url=url, job_id=jid, mode=mode, uid=uid,
-                                         artist=artist, selected_lyrics=None,
-                                         use_sem=True, auto_lyrics=auto_lyrics,
-                                         playlist_index=i+1),
-                             daemon=True).start()
+            if is_sc and convert:
+                # SC → YouTube 변환: ytsearch로 동일 곡 검색 후 다운로드
+                yt_url = f"ytsearch1:{uploader} {title}".strip()
+                threading.Thread(target=_run_single,
+                                 kwargs=dict(url=yt_url, job_id=jid, mode=mode, uid=uid,
+                                             artist=uploader, selected_lyrics=None,
+                                             use_sem=True, auto_lyrics=auto_lyrics),
+                                 daemon=True).start()
+            else:
+                threading.Thread(target=_run_single,
+                                 kwargs=dict(url=url, job_id=jid, mode=mode, uid=uid,
+                                             artist=artist, selected_lyrics=None,
+                                             use_sem=True, auto_lyrics=auto_lyrics,
+                                             playlist_index=i+1),
+                                 daemon=True).start()
             job_ids.append(jid)
         return jsonify({"success": True, "job_ids": job_ids, "count": len(job_ids),
-                        "msg": f"플레이리스트 {len(job_ids)}곡 추출 시작"})
+                        "msg": f"{'SC→YT 변환' if is_sc and convert else '플레이리스트'} {len(job_ids)}곡 추출 시작"})
 
     # 단일 트랙
     job_id = str(int(time.time() * 1000))
