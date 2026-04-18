@@ -398,7 +398,8 @@
                             <div class="track-artist">${f.artist || '—'}</div>
                         </div>
                         <div class="track-actions">
-                            <button class="track-btn" onclick="event.stopPropagation(); showAddToPlaylist(${f.id})">＋ Playlist</button>
+                            <button class="track-btn" onclick="event.stopPropagation(); showAddToPlaylist(${f.id})">＋</button>
+                            <button class="track-btn" onclick="event.stopPropagation(); deleteTrack('${f.id}', ${JSON.stringify(f.filename)})" style="color:#f87171; border-color:#4a1a1a;">🗑</button>
                         </div>
                     </div>
                 `).join('');
@@ -726,6 +727,24 @@
             } catch(e) {
                 alert('저장 실패: ' + e.message);
             }
+        }
+
+        // --- Delete ---
+        async function deleteTrack(id, name) {
+            if (!confirm(`"${name}" 삭제할까요?`)) return;
+            try {
+                await apiFetch(`${PI_URL}/api/files/${id}`, { method: 'DELETE' });
+                if (currentItem && String(currentItem.id) === String(id)) {
+                    audio.pause();
+                    audio.src = '';
+                    currentItem = null;
+                    document.getElementById('now-title').innerText = 'No track selected';
+                    document.getElementById('now-title').style.color = 'var(--sc-muted)';
+                    document.getElementById('now-artist').innerText = '—';
+                    document.getElementById('now-thumb').src = '';
+                }
+                renderView();
+            } catch(e) { alert('삭제 실패: ' + e.message); }
         }
 
         window.onload = () => renderView();

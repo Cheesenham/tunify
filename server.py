@@ -154,10 +154,10 @@ def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, 
     with ctx:
         try:
             import glob as _glob
-            timestamp = int(time.time())
+            file_id = int(job_id)  # job_id는 ms타임스탬프, 플레이리스트도 고유값
             user_dir = os.path.join(STORAGE_DIR, uid)
             os.makedirs(user_dir, exist_ok=True)
-            tmp_base = os.path.join(user_dir, f"mpl_{timestamp}")  # 확장자 없음
+            tmp_base = os.path.join(user_dir, f"mpl_{file_id}")  # 확장자 없음
 
             jobs[job_id].update({"progress": 5, "status": "SC 제목 조회 중..." if convert_sc else "정보 가져오는 중..."})
 
@@ -224,7 +224,7 @@ def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, 
                 jobs[job_id].update({"status": "가사 검색 중..."})
                 lyrics_data = _auto_fetch_lyrics(title, artist or uploader)
             if lyrics_data:
-                lrc_filename = f"mpl_{timestamp}.json"
+                lrc_filename = f"mpl_{file_id}.json"
                 with open(os.path.join(user_dir, lrc_filename), 'w', encoding='utf-8') as f:
                     json.dump({"title": title, "artist": artist or uploader, "synced_lyrics": lyrics_data}, f, ensure_ascii=False)
 
@@ -233,9 +233,9 @@ def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, 
             if os.path.exists(db_path):
                 with open(db_path, 'r', encoding='utf-8') as f:
                     db = json.load(f)
-            db.append({"id": timestamp, "uid": uid, "filename": title, "file": filename,
+            db.append({"id": file_id, "uid": uid, "filename": title, "file": filename,
                         "lrc_file": lrc_filename, "thumbnail": thumbnail,
-                        "artist": artist or uploader, "type": mode, "created_at": timestamp})
+                        "artist": artist or uploader, "type": mode, "created_at": file_id})
             with open(db_path, 'w', encoding='utf-8') as f:
                 json.dump(db, f, ensure_ascii=False, indent=2)
 
@@ -362,6 +362,28 @@ def edit_lyrics():
     with open(db_path, 'w', encoding='utf-8') as f:
         json.dump(db, f, ensure_ascii=False, indent=2)
 
+    return jsonify({"success": True})
+
+# --- 파일 삭제 ---
+@app.route('/api/files/<file_id>', methods=['DELETE'])
+def delete_file(file_id):
+    db_path = os.path.join(STORAGE_DIR, 'db.json')
+    if not os.path.exists(db_path):
+        return jsonify({"success": False, "msg": "DB 없음"})
+    with open(db_path, 'r', encoding='utf-8') as f:
+        db = json.load(f)
+    item = next((x for x in db if str(x['id']) == file_id), None)
+    if not item:
+        return jsonify({"success": False, "msg": "항목 없음"})
+    uid = item['uid']
+    for fname in [item.get('file'), item.get('lrc_file')]:
+        if fname:
+            p = os.path.join(STORAGE_DIR, uid, fname)
+            if os.path.exists(p):
+                os.remove(p)
+    db = [x for x in db if str(x['id']) != file_id]
+    with open(db_path, 'w', encoding='utf-8') as f:
+        json.dump(db, f, ensure_ascii=False, indent=2)
     return jsonify({"success": True})
 
 # --- 플레이리스트 ---
