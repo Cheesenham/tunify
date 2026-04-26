@@ -158,35 +158,37 @@ def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, 
             os.makedirs(user_dir, exist_ok=True)
             tmp_base = os.path.join(user_dir, f"mpl_{file_id}")
 
-            jobs[job_id].update({"progress": 10, "status": "다운로드 중..."})
+            jobs[job_id].update({"progress": 10, "status": "정보 가져오는 중..."})
 
-            # 다운로드 + --print로 title/uploader/id 캡처 (thumbnail은 id로 구성)
-            dl_cmd = [YTDLP, '--no-warnings',
-                      '--print', '%(title)s\t%(uploader)s\t%(id)s',
-                      '-o', tmp_base + '.%(ext)s']
+            # Step 1: 메타데이터 조회 + 실제 URL 확정 (--skip-download, --print 별도 실행)
+            meta_res = subprocess.run(
+                [YTDLP, '--no-warnings', '--skip-download',
+                 '--print', '%(title)s\t%(uploader)s\t%(id)s\t%(webpage_url)s', url],
+                capture_output=True, text=True, timeout=30
+            )
+            meta_line = meta_res.stdout.strip().split('\n')[0] if meta_res.stdout.strip() else ''
+            parts = [p.strip() for p in meta_line.split('\t')]
+            def _v(i): return parts[i] if len(parts) > i and parts[i] not in ('', 'NA', 'None') else ''
+            title      = _v(0) or jobs[job_id].get('title') or 'Unknown'
+            uploader   = _v(1)
+            vid_id     = _v(2)
+            actual_url = _v(3) or url  # ytsearch → 실제 YT URL로 확정
+            thumbnail  = f"https://img.youtube.com/vi/{vid_id}/mqdefault.jpg" if vid_id else ''
+            jobs[job_id].update({"title": title, "thumbnail": thumbnail, "progress": 20, "status": "다운로드 중..."})
+
+            # Step 2: 다운로드 (--print 없이, 확정된 URL 사용)
+            dl_cmd = [YTDLP, '--no-warnings', '-o', tmp_base + '.%(ext)s']
             if mode == 'music':
                 dl_cmd += ['-x', '--audio-format', 'mp3', '--audio-quality', '0']
             else:
                 dl_cmd += ['-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]' if check_ffmpeg() else 'best[ext=mp4]']
-            dl_cmd.append(url)
+            dl_cmd.append(actual_url)
 
             res = subprocess.run(dl_cmd, capture_output=True, text=True, timeout=300)
             if res.returncode != 0:
                 err = (res.stderr.strip().split('\n') or [''])[-1]
                 raise Exception(err[:200])
-
-            # --print 출력 파싱
-            meta_line = res.stdout.strip().split('\n')[0] if res.stdout.strip() else ''
-            parts = [p.strip() for p in meta_line.split('\t')]
-            def _v(i): return parts[i] if len(parts) > i and parts[i] not in ('', 'NA', 'None') else ''
-            title    = _v(0) or jobs[job_id].get('title') or 'Unknown'
-            uploader = _v(1)
-            vid_id   = _v(2)
-            # YouTube 썸네일 URL 구성
-            thumbnail = (f"https://img.youtube.com/vi/{vid_id}/mqdefault.jpg"
-                         if vid_id and 'youtube' not in url and 'youtu.be' not in url
-                         else f"https://img.youtube.com/vi/{vid_id}/mqdefault.jpg" if vid_id else '')
-            jobs[job_id].update({"title": title, "thumbnail": thumbnail, "progress": 85, "status": "저장 중..."})
+            jobs[job_id].update({"progress": 85, "status": "저장 중..."})
 
             # 오디오 파일 탐색 (audio 우선, 점(.)이 아닌 것도 포함)
             AUDIO_EXTS = {'.mp3', '.m4a', '.ogg', '.opus', '.flac', '.wav', '.aac'}
