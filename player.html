@@ -103,11 +103,10 @@
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
 
-        /* Now Playing Screen */
+        /* ── Now Playing Screen ── */
         .np-screen {
             position: fixed; inset: 0; z-index: 200;
-            background: #111;
-            display: flex; flex-direction: column;
+            background: #111; display: flex; flex-direction: column;
             transform: translateY(100%);
             transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
         }
@@ -115,75 +114,86 @@
 
         .np-header {
             display: flex; align-items: center; justify-content: space-between;
-            padding: 16px 20px;
-            flex-shrink: 0;
+            padding: 12px 20px; flex-shrink: 0;
         }
-        .np-down-btn {
-            background: none; border: none; color: var(--sc-muted); cursor: pointer;
-            font-size: 1.4rem; padding: 4px 8px; border-radius: 4px; transition: 0.12s;
-        }
+        .np-down-btn { background: none; border: none; color: var(--sc-muted); cursor: pointer; font-size: 1.4rem; padding: 4px 8px; border-radius: 4px; transition: 0.12s; }
         .np-down-btn:hover { color: white; }
-        .np-label { font-size: 0.75rem; color: var(--sc-muted); text-transform: uppercase; letter-spacing: 1px; }
+        .np-label { font-size: 0.72rem; color: var(--sc-muted); text-transform: uppercase; letter-spacing: 1px; }
 
-        .np-body {
-            flex: 1; overflow: hidden; display: flex; flex-direction: column;
-            align-items: center; padding: 0 24px 24px;
-            gap: 20px;
+        /* Portrait: column */
+        .np-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+
+        .np-left {
+            display: flex; flex-direction: column; align-items: center;
+            gap: 14px; padding: 0 24px 16px; flex-shrink: 0;
         }
-
         .np-art {
-            width: min(260px, 60vw); height: min(260px, 60vw);
+            width: min(220px, 52vw); height: min(220px, 52vw);
             border-radius: 12px; object-fit: cover; background: #2a2a2a;
-            box-shadow: 0 16px 40px rgba(0,0,0,0.6);
-            flex-shrink: 0;
+            box-shadow: 0 12px 32px rgba(0,0,0,0.6); flex-shrink: 0;
         }
-
         .np-meta { text-align: center; width: 100%; }
-        .np-song { font-size: 1.25rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .np-artist { font-size: 0.9rem; color: var(--sc-orange); margin-top: 4px; }
+        .np-song { font-size: 1.1rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .np-artist { font-size: 0.85rem; color: var(--sc-orange); margin-top: 3px; }
+
+        .np-progress-wrap { width: 100%; flex-shrink: 0; }
+        .np-waveform { width: 100%; height: 4px; background: #2a2a2a; border-radius: 2px; cursor: pointer; margin-bottom: 6px; }
+        .np-waveform-fill { height: 100%; background: var(--sc-orange); width: 0%; border-radius: 2px; pointer-events: none; transition: width 0.1s linear; }
+        .np-times { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--sc-muted); }
+
+        .np-controls { display: flex; align-items: center; gap: 20px; }
+        .np-ctrl { background: none; border: none; color: var(--sc-muted); cursor: pointer; font-size: 1.3rem; padding: 4px 8px; border-radius: 4px; transition: 0.12s; }
+        .np-ctrl:hover { color: white; }
+        .np-play { width: 52px; height: 52px; border-radius: 50%; background: var(--sc-orange); color: white; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer; transition: 0.15s; }
+        .np-play:hover { background: #e04d00; }
 
         .np-lyrics-wrap {
-            flex: 1; width: 100%; overflow-y: auto; min-height: 0;
-            background: #1a1a1a; border-radius: 10px;
-            padding: 16px 12px;
+            flex: 1; overflow-y: auto; min-height: 0;
+            background: #1a1a1a; margin: 0 12px 12px; border-radius: 10px; padding: 12px;
         }
         .np-lyrics-wrap::-webkit-scrollbar { width: 3px; }
         .np-lyrics-wrap::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
-
-        .np-lyric-line {
-            padding: 7px 10px; border-radius: 6px;
-            font-size: 0.9rem; color: #555;
-            text-align: center; transition: color 0.25s, background 0.25s;
-            cursor: pointer; line-height: 1.5;
-        }
+        .np-lyric-line { padding: 7px 10px; border-radius: 6px; font-size: 0.88rem; color: #555; text-align: center; transition: color 0.25s, background 0.25s; cursor: pointer; line-height: 1.5; }
         .np-lyric-line:hover { color: #888; }
-        .np-lyric-line.active {
-            color: white; font-weight: 600;
-            background: rgba(255,85,0,0.12);
-        }
+        .np-lyric-line.active { color: white; font-weight: 600; background: rgba(255,85,0,0.12); }
         .np-no-lyrics { text-align: center; color: #444; font-size: 0.85rem; padding: 20px; }
 
-        .np-progress-wrap {
-            width: 100%; flex-shrink: 0;
+        /* Landscape: art+controls left, lyrics right */
+        @media (orientation: landscape) and (min-width: 600px) {
+            .np-body { flex-direction: row; padding: 0; gap: 0; }
+            .np-left {
+                width: 42%; max-width: 380px; padding: 16px 24px;
+                justify-content: center; border-right: 1px solid #1a1a1a;
+            }
+            .np-art { width: min(180px, 28vw); height: min(180px, 28vw); }
+            .np-lyrics-wrap { margin: 12px 12px 12px 0; border-radius: 10px; }
         }
-        .np-waveform {
-            width: 100%; height: 4px; background: #2a2a2a; border-radius: 2px;
-            cursor: pointer; position: relative; margin-bottom: 8px;
-        }
-        .np-waveform-fill {
-            height: 100%; background: var(--sc-orange); width: 0%; border-radius: 2px;
-            pointer-events: none; transition: width 0.1s linear;
-        }
-        .np-times { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--sc-muted); }
 
-        .np-controls {
-            display: flex; align-items: center; gap: 20px; flex-shrink: 0;
-            padding-bottom: 8px;
+        /* ── Mobile main UI ── */
+        .bottom-nav {
+            display: none; height: 56px; background: #111; border-top: 1px solid var(--sc-border);
+            flex-shrink: 0;
         }
-        .np-ctrl { background: none; border: none; color: var(--sc-muted); cursor: pointer; font-size: 1.3rem; padding: 4px 8px; transition: 0.12s; border-radius: 4px; }
-        .np-ctrl:hover { color: white; }
-        .np-play { width: 54px; height: 54px; border-radius: 50%; background: var(--sc-orange); color: white; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer; transition: 0.15s; }
-        .np-play:hover { background: #e04d00; transform: scale(1.05); }
+        .bottom-nav-inner { display: flex; height: 100%; }
+        .bnav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: pointer; color: var(--sc-muted); font-size: 0.6rem; transition: 0.12s; border: none; background: none; font-family: inherit; }
+        .bnav-item .icon { font-size: 1.3rem; line-height: 1; }
+        .bnav-item.active { color: var(--sc-orange); }
+        .bnav-item:hover { color: white; }
+
+        @media (max-width: 640px) {
+            .sidebar { display: none; }
+            .bottom-nav { display: block; }
+            .topnav .logo { font-size: 1rem; }
+            .content { padding: 16px; }
+            .content-title { font-size: 1.1rem; margin-bottom: 14px; }
+            .now-playing { width: 160px; }
+            .player-right { width: auto; }
+            .sync-wrap { display: none !important; }
+            .track-item { padding: 8px 6px; }
+            .track-thumb { width: 38px; height: 38px; }
+            .player-bar { padding: 0 12px; gap: 12px; }
+            .fab { bottom: 156px; }
+        }
 
         /* Lyrics Search Modal */
         .lrc-modal { display: none; position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,0.85); flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 60px; }
@@ -245,27 +255,29 @@
             <button class="np-down-btn" onclick="openLyricsSearch()" title="가사 검색" style="font-size:1rem;">🔍</button>
         </div>
         <div class="np-body">
-            <img id="np-art" class="np-art" src="" onerror="this.style.background='#2a2a2a'">
-            <div class="np-meta">
-                <div class="np-song" id="np-song">—</div>
-                <div class="np-artist" id="np-artist-label">—</div>
+            <div class="np-left">
+                <img id="np-art" class="np-art" src="" onerror="this.style.background='#2a2a2a'">
+                <div class="np-meta">
+                    <div class="np-song" id="np-song">—</div>
+                    <div class="np-artist" id="np-artist-label">—</div>
+                </div>
+                <div class="np-progress-wrap">
+                    <div class="np-waveform" onclick="npSeekTo(event)">
+                        <div class="np-waveform-fill" id="np-waveform-fill"></div>
+                    </div>
+                    <div class="np-times">
+                        <span id="np-cur">0:00</span>
+                        <span id="np-dur">0:00</span>
+                    </div>
+                </div>
+                <div class="np-controls">
+                    <button class="np-ctrl" onclick="prevTrack()">⏮</button>
+                    <button class="np-play" id="np-play-btn" onclick="togglePlay()">▶</button>
+                    <button class="np-ctrl" onclick="nextTrack()">⏭</button>
+                </div>
             </div>
             <div class="np-lyrics-wrap" id="np-lyrics-wrap">
                 <div class="np-no-lyrics">가사가 없습니다.</div>
-            </div>
-            <div class="np-progress-wrap">
-                <div class="np-waveform" onclick="npSeekTo(event)">
-                    <div class="np-waveform-fill" id="np-waveform-fill"></div>
-                </div>
-                <div class="np-times">
-                    <span id="np-cur">0:00</span>
-                    <span id="np-dur">0:00</span>
-                </div>
-            </div>
-            <div class="np-controls">
-                <button class="np-ctrl" onclick="prevTrack()">⏮</button>
-                <button class="np-play" id="np-play-btn" onclick="togglePlay()">▶</button>
-                <button class="np-ctrl" onclick="nextTrack()">⏭</button>
             </div>
         </div>
     </div>
@@ -335,6 +347,28 @@
         </div>
     </div>
 
+    <!-- Mobile Bottom Nav -->
+    <div class="bottom-nav" id="bottom-nav">
+        <div class="bottom-nav-inner">
+            <button class="bnav-item active" id="bnav-all" onclick="setView('all'); setBnavActive('all')">
+                <span class="icon">🎵</span>
+                <span>Library</span>
+            </button>
+            <button class="bnav-item" id="bnav-playlist" onclick="setView('playlist'); setBnavActive('playlist')">
+                <span class="icon">📁</span>
+                <span>Playlists</span>
+            </button>
+            <button class="bnav-item" id="bnav-new" onclick="openCreatePlaylist()">
+                <span class="icon">＋</span>
+                <span>New</span>
+            </button>
+            <button class="bnav-item" id="bnav-sync" onclick="toggleSync(); setBnavActive('sync')">
+                <span class="icon">⏱</span>
+                <span>Sync</span>
+            </button>
+        </div>
+    </div>
+
     <audio id="audio" style="display:none;"></audio>
 
     <script>
@@ -355,6 +389,10 @@
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
             document.getElementById('nav-' + v)?.classList.add('active');
             renderView();
+        }
+        function setBnavActive(v) {
+            document.querySelectorAll('.bnav-item').forEach(el => el.classList.remove('active'));
+            document.getElementById('bnav-' + v)?.classList.add('active');
         }
 
         async function loadData() {
