@@ -564,6 +564,11 @@
             const rect = e.currentTarget.getBoundingClientRect();
             audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;
         }
+        function lrcSeek(t) {
+            audio.currentTime = t;
+            if (audio.paused) audio.play().catch(() => {});
+        }
+
         function renderNPLyrics() {
             const wrap = document.getElementById('np-lyrics-wrap');
             if (!lyrics.length) {
@@ -571,7 +576,7 @@
                 return;
             }
             wrap.innerHTML = lyrics.map((l, i) =>
-                `<div class="np-lyric-line" data-i="${i}" onclick="audio.currentTime=${l.time}">${l.text || '♪'}</div>`
+                `<div class="np-lyric-line" data-i="${i}" onclick="lrcSeek(${l.time})">${l.text || '♪'}</div>`
             ).join('');
         }
 
