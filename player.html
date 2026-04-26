@@ -387,7 +387,7 @@
                     return;
                 }
                 container.innerHTML = trackList.map((f, i) => `
-                    <div class="track-item ${currentItem?.id === f.id ? 'playing' : ''}" id="track-${f.id}" onclick='playSong(${JSON.stringify(f).replace(/'/g,"&#39;")}, ${i})'>
+                    <div class="track-item ${currentItem?.id === f.id ? 'playing' : ''}" id="track-${f.id}" data-idx="${i}" onclick="playByIdx(${i})">
                         <div class="track-num">${currentItem?.id === f.id ? '♫' : i + 1}</div>
                         <div class="track-thumb-wrap">
                             <img class="track-thumb" src="${f.thumbnail || ''}" onerror="this.style.background='#444'">
@@ -399,7 +399,7 @@
                         </div>
                         <div class="track-actions">
                             <button class="track-btn" onclick="event.stopPropagation(); showAddToPlaylist(${f.id})">＋</button>
-                            <button class="track-btn" onclick="event.stopPropagation(); deleteTrack('${f.id}', ${JSON.stringify(f.filename)})" style="color:#f87171; border-color:#4a1a1a;">🗑</button>
+                            <button class="track-btn" onclick="event.stopPropagation(); deleteTrack('${f.id}', \`${f.filename.replace(/`/g,"'")}\`)" style="color:#f87171; border-color:#4a1a1a;">🗑</button>
                         </div>
                     </div>
                 `).join('');
@@ -444,6 +444,8 @@
         }
 
         // --- Playback ---
+        function playByIdx(i) { playSong(trackList[i], i); }
+
         async function playSong(item, idx) {
             currentItem = item;
             currentIdx = idx;
@@ -497,6 +499,14 @@
             if (!s || isNaN(s)) return '0:00';
             return Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
         }
+
+        audio.onerror = () => {
+            const c = {1:'재생취소',2:'네트워크오류',3:'디코드오류',4:'지원안됨'};
+            const msg = c[audio.error?.code] || '알수없음';
+            document.getElementById('now-title').innerText = `재생오류: ${msg}`;
+            document.getElementById('now-title').style.color = '#f87171';
+            console.error('Audio error', audio.error?.code, audio.src);
+        };
 
         audio.ontimeupdate = () => {
             const pct = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
