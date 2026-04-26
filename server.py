@@ -147,6 +147,7 @@ def lyrics_search():
 
 # --- 추출 + 로컬 저장 ---
 _pl_sem = threading.Semaphore(128)
+_db_lock = threading.Lock()
 
 def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, auto_lyrics=False):
     ctx = _pl_sem if use_sem else __import__('contextlib').nullcontext()
@@ -214,17 +215,18 @@ def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, 
                     json.dump({"title": title, "artist": artist or uploader,
                                "synced_lyrics": lyrics_data}, f, ensure_ascii=False)
 
-            # DB 저장
+            # DB 저장 (락으로 동시 쓰기 방지)
             db_path = os.path.join(STORAGE_DIR, 'db.json')
-            db = []
-            if os.path.exists(db_path):
-                with open(db_path, 'r', encoding='utf-8') as f:
-                    db = json.load(f)
-            db.append({"id": file_id, "uid": uid, "filename": title, "file": filename,
-                       "lrc_file": lrc_filename, "thumbnail": thumbnail,
-                       "artist": artist or uploader, "type": mode, "created_at": file_id})
-            with open(db_path, 'w', encoding='utf-8') as f:
-                json.dump(db, f, ensure_ascii=False, indent=2)
+            with _db_lock:
+                db = []
+                if os.path.exists(db_path):
+                    with open(db_path, 'r', encoding='utf-8') as f:
+                        db = json.load(f)
+                db.append({"id": file_id, "uid": uid, "filename": title, "file": filename,
+                           "lrc_file": lrc_filename, "thumbnail": thumbnail,
+                           "artist": artist or uploader, "type": mode, "created_at": file_id})
+                with open(db_path, 'w', encoding='utf-8') as f:
+                    json.dump(db, f, ensure_ascii=False, indent=2)
 
             jobs[job_id].update({"progress": 100, "status": "완료 ✓"})
             print(f"✅ {title}")
@@ -249,7 +251,7 @@ def extract():
     try:
         detect_res = subprocess.run(
             [YTDLP, '--flat-playlist', '--dump-single-json', '--no-warnings', '--yes-playlist', url],
-            capture_output=True, text=True, timeout=60
+            capture_output=True, text=True, timeout=120
         )
         meta = json.loads(detect_res.stdout)
         entries = [e for e in meta.get('entries', []) if e]
@@ -259,27 +261,18 @@ def extract():
 
     if entries:
         is_sc = 'soundcloud.com' in url
+        is_yt = 'youtube.com' in url or 'youtu.be' in url
         convert = data.get('convert_sc', False)
         job_ids = []
 
-        # SC 플리 → YT 변환: 제목을 1번 일괄 조회 후 ytsearch URL 생성
-        sc_yt_urls = {}  # index → ytsearch URL
+        # SC 플리 → YT 변환: flat-playlist에서 이미 얻은 제목을 재활용 (별도 subprocess 불필요)
+        sc_yt_urls = {}
         if is_sc and convert:
-            try:
-                batch = subprocess.run(
-                    [YTDLP, '--no-warnings', '--skip-download',
-                     '--print', '%(title)s\t%(uploader)s', '--yes-playlist', url],
-                    capture_output=True, text=True, timeout=180
-                )
-                lines = [l.strip() for l in batch.stdout.strip().split('\n') if l.strip()]
-                for i, line in enumerate(lines):
-                    p = line.split('\t')
-                    t = p[0].strip() if p else ''
-                    a = p[1].strip() if len(p) > 1 else ''
-                    if t and t != 'NA':
-                        sc_yt_urls[i] = (f"ytsearch1:{a} {t}".strip(), t, a)
-            except Exception as e:
-                print(f"SC 일괄 조회 실패: {e}")
+            for i, entry in enumerate(entries):
+                t = (entry.get('title') or '').strip()
+                a = (entry.get('uploader') or entry.get('channel') or '').strip()
+                if t and t != 'NA':
+                    sc_yt_urls[i] = (f"ytsearch1:{a} {t}".strip(), t, a)
 
         for i, entry in enumerate(entries):
             jid = str(int(time.time() * 1000) + i)
@@ -287,7 +280,7 @@ def extract():
             if is_sc and convert:
                 if i not in sc_yt_urls:
                     jobs[jid] = {"title": entry.get('title') or f'Track {i+1}',
-                                 "progress": 0, "status": "SC 제목 없음", "thumbnail": "", "error": "SC 제목 조회 실패"}
+                                 "progress": 0, "status": "SC 제목 없음", "thumbnail": "", "error": "SC 제목 없음"}
                     job_ids.append(jid)
                     continue
                 yt_url, sc_title, sc_artist = sc_yt_urls[i]
@@ -298,9 +291,16 @@ def extract():
                                              use_sem=True, auto_lyrics=auto_lyrics),
                                  daemon=True).start()
             else:
+                eid = entry.get('id', '')
                 track_url = entry.get('webpage_url') or entry.get('url') or ''
+                # URL이 http로 시작하지 않으면 ID로 직접 구성
                 if not track_url.startswith('http'):
-                    track_url = url
+                    if eid and is_yt:
+                        track_url = f'https://www.youtube.com/watch?v={eid}'
+                    elif eid and is_sc:
+                        track_url = f'https://soundcloud.com/{eid}'
+                    else:
+                        track_url = url
                 title = entry.get('title') or f'Track {i+1}'
                 jobs[jid] = {"title": title, "progress": 0, "status": "대기 중",
                              "thumbnail": entry.get('thumbnail', '') or '', "error": None}
