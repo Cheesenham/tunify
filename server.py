@@ -163,12 +163,31 @@ def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, 
 
             if metadata:
                 # flat-playlist에서 이미 받은 메타데이터 → Step 1 생략 (타임아웃/레이트리밋 방지)
-                title      = (metadata.get('title') or '').strip() or jobs[job_id].get('title') or 'Unknown'
+                title      = (metadata.get('title') or '').strip()
                 uploader   = (metadata.get('uploader') or metadata.get('channel') or '').strip()
                 vid_id     = metadata.get('id') or ''
                 actual_url = metadata.get('webpage_url') or metadata.get('url') or url
                 thumbnail  = (metadata.get('thumbnail') or
                               (f"https://img.youtube.com/vi/{vid_id}/mqdefault.jpg" if vid_id else ''))
+
+                # SC flat-playlist는 title이 비어있는 경우가 많음 → Step 1로 fallback
+                if not title or title in ('NA', 'None'):
+                    try:
+                        jobs[job_id].update({"status": "제목 가져오는 중..."})
+                        meta_res = subprocess.run(
+                            [YTDLP, '--no-warnings', '--skip-download',
+                             '--print', '%(title)s\t%(uploader)s', actual_url],
+                            capture_output=True, text=True, timeout=45)
+                        line = meta_res.stdout.strip().split('\n')[0] if meta_res.stdout.strip() else ''
+                        parts = [p.strip() for p in line.split('\t')]
+                        if parts and parts[0] not in ('', 'NA', 'None'):
+                            title = parts[0]
+                        if len(parts) > 1 and parts[1] not in ('', 'NA', 'None') and not uploader:
+                            uploader = parts[1]
+                    except Exception:
+                        pass
+
+                title = title or jobs[job_id].get('title') or 'Unknown'
             else:
                 # Step 1: ytsearch 등 메타데이터를 모를 때만 조회
                 meta_res = subprocess.run(
@@ -275,55 +294,49 @@ def extract():
         convert = data.get('convert_sc', False)
         job_ids = []
 
-        # SC 플리 → YT 변환: flat-playlist에서 이미 얻은 제목을 재활용 (별도 subprocess 불필요)
-        sc_yt_urls = {}
-        if is_sc and convert:
-            for i, entry in enumerate(entries):
-                t = (entry.get('title') or '').strip()
-                a = (entry.get('uploader') or entry.get('channel') or '').strip()
-                if t and t != 'NA':
-                    sc_yt_urls[i] = (f"ytsearch1:{a} {t}".strip(), t, a)
-
+        # SC→YT 변환 옵션: flat-playlist 제목이 있으면 ytsearch, 없으면 SC 직접 다운로드
         for i, entry in enumerate(entries):
             jid = str(int(time.time() * 1000) + i)
 
-            if is_sc and convert:
-                if i not in sc_yt_urls:
-                    jobs[jid] = {"title": entry.get('title') or f'Track {i+1}',
-                                 "progress": 0, "status": "SC 제목 없음", "thumbnail": "", "error": "SC 제목 없음"}
-                    job_ids.append(jid)
-                    continue
-                yt_url, sc_title, sc_artist = sc_yt_urls[i]
-                jobs[jid] = {"title": sc_title, "progress": 0, "status": "대기 중", "thumbnail": "", "error": None}
+            eid = entry.get('id', '')
+            track_url = entry.get('webpage_url') or entry.get('url') or ''
+            if not track_url.startswith('http'):
+                if eid and is_yt:
+                    track_url = f'https://www.youtube.com/watch?v={eid}'
+                elif eid and is_sc:
+                    track_url = f'https://soundcloud.com/{eid}'
+                else:
+                    track_url = url
+
+            t = (entry.get('title') or '').strip()
+            a = (entry.get('uploader') or entry.get('channel') or '').strip()
+
+            # SC→YT 변환 요청이고 제목이 있으면 YT 검색으로 다운로드
+            if is_sc and convert and t and t not in ('NA', 'None'):
+                yt_url = f"ytsearch1:{a} {t}".strip()
+                jobs[jid] = {"title": t, "progress": 0, "status": "대기 중", "thumbnail": "", "error": None}
                 threading.Thread(target=_run_single,
                                  kwargs=dict(url=yt_url, job_id=jid, mode=mode, uid=uid,
-                                             artist=sc_artist, selected_lyrics=None,
+                                             artist=a, selected_lyrics=None,
                                              use_sem=True, auto_lyrics=auto_lyrics),
                                  daemon=True).start()
             else:
-                eid = entry.get('id', '')
-                track_url = entry.get('webpage_url') or entry.get('url') or ''
-                if not track_url.startswith('http'):
-                    if eid and is_yt:
-                        track_url = f'https://www.youtube.com/watch?v={eid}'
-                    elif eid and is_sc:
-                        track_url = f'https://soundcloud.com/{eid}'
-                    else:
-                        track_url = url
-                title = entry.get('title') or f'Track {i+1}'
-                jobs[jid] = {"title": title, "progress": 0, "status": "대기 중",
+                # SC 직접 다운로드 (제목 없어도 _run_single에서 Step 1 fallback으로 처리)
+                display_title = t or f'Track {i+1}'
+                jobs[jid] = {"title": display_title, "progress": 0, "status": "대기 중",
                              "thumbnail": entry.get('thumbnail', '') or '', "error": None}
                 # metadata 전달 → _run_single에서 Step 1(--print) 생략, 레이트리밋 방지
+                # (title 비어있으면 _run_single 내부에서 fallback Step 1 수행)
                 threading.Thread(target=_run_single,
                                  kwargs=dict(url=track_url, job_id=jid, mode=mode, uid=uid,
-                                             artist=artist, selected_lyrics=None,
+                                             artist=artist or a, selected_lyrics=None,
                                              use_sem=True, auto_lyrics=auto_lyrics,
                                              metadata=entry),
                                  daemon=True).start()
             job_ids.append(jid)
 
         return jsonify({"success": True, "job_ids": job_ids, "count": len(job_ids),
-                        "msg": f"{'SC→YT 변환' if is_sc and convert else '플레이리스트'} {len(job_ids)}곡 추출 시작"})
+                        "msg": f"플레이리스트 {len(job_ids)}곡 추출 시작"})
 
     # 단일 트랙
     job_id = str(int(time.time() * 1000))
