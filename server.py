@@ -146,10 +146,10 @@ def lyrics_search():
         return jsonify({"success": False, "msg": str(e)}), 500
 
 # --- 추출 + 로컬 저장 ---
-_pl_sem = threading.Semaphore(128)
+_pl_sem = threading.Semaphore(6)   # 플레이리스트 최대 동시 6개 (YouTube 레이트리밋 방지)
 _db_lock = threading.Lock()
 
-def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, auto_lyrics=False):
+def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, auto_lyrics=False, metadata=None):
     ctx = _pl_sem if use_sem else __import__('contextlib').nullcontext()
     with ctx:
         try:
@@ -161,20 +161,30 @@ def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, 
 
             jobs[job_id].update({"progress": 10, "status": "정보 가져오는 중..."})
 
-            # Step 1: 메타데이터 조회 + 실제 URL 확정 (--skip-download, --print 별도 실행)
-            meta_res = subprocess.run(
-                [YTDLP, '--no-warnings', '--skip-download',
-                 '--print', '%(title)s\t%(uploader)s\t%(id)s\t%(webpage_url)s', url],
-                capture_output=True, text=True, timeout=30
-            )
-            meta_line = meta_res.stdout.strip().split('\n')[0] if meta_res.stdout.strip() else ''
-            parts = [p.strip() for p in meta_line.split('\t')]
-            def _v(i): return parts[i] if len(parts) > i and parts[i] not in ('', 'NA', 'None') else ''
-            title      = _v(0) or jobs[job_id].get('title') or 'Unknown'
-            uploader   = _v(1)
-            vid_id     = _v(2)
-            actual_url = _v(3) or url  # ytsearch → 실제 YT URL로 확정
-            thumbnail  = f"https://img.youtube.com/vi/{vid_id}/mqdefault.jpg" if vid_id else ''
+            if metadata:
+                # flat-playlist에서 이미 받은 메타데이터 → Step 1 생략 (타임아웃/레이트리밋 방지)
+                title      = (metadata.get('title') or '').strip() or jobs[job_id].get('title') or 'Unknown'
+                uploader   = (metadata.get('uploader') or metadata.get('channel') or '').strip()
+                vid_id     = metadata.get('id') or ''
+                actual_url = metadata.get('webpage_url') or metadata.get('url') or url
+                thumbnail  = (metadata.get('thumbnail') or
+                              (f"https://img.youtube.com/vi/{vid_id}/mqdefault.jpg" if vid_id else ''))
+            else:
+                # Step 1: ytsearch 등 메타데이터를 모를 때만 조회
+                meta_res = subprocess.run(
+                    [YTDLP, '--no-warnings', '--skip-download',
+                     '--print', '%(title)s\t%(uploader)s\t%(id)s\t%(webpage_url)s', url],
+                    capture_output=True, text=True, timeout=45
+                )
+                meta_line = meta_res.stdout.strip().split('\n')[0] if meta_res.stdout.strip() else ''
+                parts = [p.strip() for p in meta_line.split('\t')]
+                def _v(i): return parts[i] if len(parts) > i and parts[i] not in ('', 'NA', 'None') else ''
+                title      = _v(0) or jobs[job_id].get('title') or 'Unknown'
+                uploader   = _v(1)
+                vid_id     = _v(2)
+                actual_url = _v(3) or url
+                thumbnail  = f"https://img.youtube.com/vi/{vid_id}/mqdefault.jpg" if vid_id else ''
+
             jobs[job_id].update({"title": title, "thumbnail": thumbnail, "progress": 20, "status": "다운로드 중..."})
 
             # Step 2: 다운로드 (--print 없이, 확정된 URL 사용)
@@ -293,7 +303,6 @@ def extract():
             else:
                 eid = entry.get('id', '')
                 track_url = entry.get('webpage_url') or entry.get('url') or ''
-                # URL이 http로 시작하지 않으면 ID로 직접 구성
                 if not track_url.startswith('http'):
                     if eid and is_yt:
                         track_url = f'https://www.youtube.com/watch?v={eid}'
@@ -304,10 +313,12 @@ def extract():
                 title = entry.get('title') or f'Track {i+1}'
                 jobs[jid] = {"title": title, "progress": 0, "status": "대기 중",
                              "thumbnail": entry.get('thumbnail', '') or '', "error": None}
+                # metadata 전달 → _run_single에서 Step 1(--print) 생략, 레이트리밋 방지
                 threading.Thread(target=_run_single,
                                  kwargs=dict(url=track_url, job_id=jid, mode=mode, uid=uid,
                                              artist=artist, selected_lyrics=None,
-                                             use_sem=True, auto_lyrics=auto_lyrics),
+                                             use_sem=True, auto_lyrics=auto_lyrics,
+                                             metadata=entry),
                                  daemon=True).start()
             job_ids.append(jid)
 
