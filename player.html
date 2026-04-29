@@ -39,8 +39,15 @@
         .track-item.playing { background: rgba(255,85,0,0.08); }
         .track-num { width: 22px; text-align: center; font-size: 0.75rem; color: var(--sc-muted); flex-shrink: 0; }
         .track-item.playing .track-num { color: var(--sc-orange); }
-        .track-thumb-wrap { position: relative; flex-shrink: 0; }
-        .track-thumb { width: 44px; height: 44px; border-radius: 4px; object-fit: cover; background: #333; display: block; }
+        .track-thumb-wrap {
+            position: relative; flex-shrink: 0;
+            width: 44px; height: 44px;
+            border-radius: 4px; overflow: hidden;
+            background: linear-gradient(135deg, #1a1a2e, #2a2a2a);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .track-thumb-wrap::before { content: '♪'; font-size: 1.1rem; color: #444; position: absolute; }
+        .track-thumb { width: 44px; height: 44px; border-radius: 4px; object-fit: cover; display: block; position: relative; z-index: 1; transition: opacity 0.15s; }
         .play-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.55); border-radius: 4px; display: none; align-items: center; justify-content: center; font-size: 1rem; }
         .track-item:hover .play-overlay { display: flex; }
         .track-info { flex: 1; min-width: 0; }
@@ -128,10 +135,23 @@
             gap: 10px; padding: 8px 24px 12px; flex-shrink: 0;
             max-height: 56vh; overflow: hidden;
         }
-        .np-art {
+        .np-art-wrap {
+            position: relative; flex-shrink: 0;
             width: min(170px, 38vw); height: min(170px, 38vw);
-            border-radius: 12px; object-fit: cover; background: #2a2a2a;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.6); flex-shrink: 0;
+            border-radius: 12px; overflow: hidden;
+            background: linear-gradient(135deg, #1a1a2e 0%, #2a2a3a 100%);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .np-art-wrap::before {
+            content: '♪'; font-size: 3.5rem; color: #333;
+            position: absolute; pointer-events: none;
+        }
+        .np-art {
+            width: 100%; height: 100%;
+            border-radius: 12px; object-fit: cover;
+            position: relative; z-index: 1;
+            transition: opacity 0.2s;
         }
         .np-meta { text-align: center; width: 100%; }
         .np-song { font-size: 1.1rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -148,8 +168,12 @@
         .np-play { width: 52px; height: 52px; border-radius: 50%; background: var(--sc-orange); color: white; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer; transition: 0.15s; }
         .np-play:hover { background: #e04d00; }
 
+        .np-no-lyrics {
+            color: #444; font-size: 0.8rem; text-align: center;
+            padding: 20px; letter-spacing: 0.5px;
+        }
         .np-lyrics-wrap {
-            flex: 1; overflow-y: auto; min-height: 120px; min-width: 0;
+            flex: 1; overflow-y: auto; min-height: 80px; min-width: 0;
             background: #1a1a1a; margin: 0 12px 12px; border-radius: 10px; padding: 12px;
         }
         .np-lyrics-wrap::-webkit-scrollbar { width: 3px; }
@@ -168,7 +192,8 @@
                 justify-content: center; border-right: 1px solid #222;
                 flex-shrink: 0; overflow-y: auto;
             }
-            .np-art { width: min(150px, 22vw); height: min(150px, 22vw); }
+            .np-art-wrap { width: min(150px, 22vw); height: min(150px, 22vw); }
+            .np-art { width: 100%; height: 100%; }
             .np-lyrics-wrap {
                 flex: 1; margin: 12px; min-height: 0; min-width: 0;
                 overflow-y: auto; align-self: stretch;
@@ -196,6 +221,7 @@
             .player-right { width: auto; }
             .sync-wrap { display: none !important; }
             .track-item { padding: 8px 6px; }
+            .track-thumb-wrap { width: 38px; height: 38px; }
             .track-thumb { width: 38px; height: 38px; }
             .player-bar { padding: 0 12px; gap: 12px; }
             .fab { bottom: 156px; }
@@ -262,7 +288,9 @@
         </div>
         <div class="np-body">
             <div class="np-left">
-                <img id="np-art" class="np-art" src="" onerror="this.style.background='#2a2a2a'">
+                <div class="np-art-wrap">
+                    <img id="np-art" class="np-art" src="" onerror="this.style.opacity=0">
+                </div>
                 <div class="np-meta">
                     <div class="np-song" id="np-song">—</div>
                     <div class="np-artist" id="np-artist-label">—</div>
@@ -434,7 +462,7 @@
                     <div class="track-item ${currentItem?.id === f.id ? 'playing' : ''}" id="track-${f.id}" data-idx="${i}" onclick="playByIdx(${i})">
                         <div class="track-num">${currentItem?.id === f.id ? '♫' : i + 1}</div>
                         <div class="track-thumb-wrap">
-                            <img class="track-thumb" src="${f.thumbnail || ''}" onerror="this.style.background='#444'">
+                            <img class="track-thumb" src="${f.thumbnail || ''}" onerror="this.style.opacity=0">
                             <div class="play-overlay">▶</div>
                         </div>
                         <div class="track-info">
@@ -476,7 +504,7 @@
                     <div class="track-item" onclick='playSong(${JSON.stringify(f).replace(/'/g,"&#39;")}, ${i})'>
                         <div class="track-num">${i + 1}</div>
                         <div class="track-thumb-wrap">
-                            <img class="track-thumb" src="${f.thumbnail || ''}" onerror="this.style.background='#444'">
+                            <img class="track-thumb" src="${f.thumbnail || ''}" onerror="this.style.opacity=0">
                             <div class="play-overlay">▶</div>
                         </div>
                         <div class="track-info">
@@ -500,7 +528,9 @@
             document.getElementById('now-title').innerText = item.filename;
             document.getElementById('now-title').style.color = '#aaa';
             document.getElementById('now-artist').innerText = item.artist || '—';
-            document.getElementById('np-art').src = item.thumbnail || '';
+            const npArt = document.getElementById('np-art');
+            npArt.style.opacity = 1;
+            npArt.src = item.thumbnail || '';
             document.getElementById('np-song').innerText = item.filename;
             document.getElementById('np-artist-label').innerText = item.artist || '—';
             document.getElementById('play-btn').innerText = '⏸';
