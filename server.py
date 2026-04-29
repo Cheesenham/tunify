@@ -148,8 +148,36 @@ def lyrics_search():
 # --- 추출 + 로컬 저장 ---
 _pl_sem = threading.Semaphore(6)   # 플레이리스트 최대 동시 6개 (YouTube 레이트리밋 방지)
 _db_lock = threading.Lock()
+_pljson_lock = threading.Lock()    # playlists.json 동시 쓰기 방지
 
-def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, auto_lyrics=False, metadata=None):
+def _create_playlist_internal(uid, name, pl_id):
+    pl_path = os.path.join(STORAGE_DIR, uid, 'playlists.json')
+    os.makedirs(os.path.join(STORAGE_DIR, uid), exist_ok=True)
+    with _pljson_lock:
+        pls = []
+        if os.path.exists(pl_path):
+            with open(pl_path, 'r', encoding='utf-8') as f:
+                pls = json.load(f)
+        pls.append({"id": pl_id, "name": name, "items": []})
+        with open(pl_path, 'w', encoding='utf-8') as f:
+            json.dump(pls, f, ensure_ascii=False)
+
+def _add_to_playlist_internal(uid, pl_id, file_id):
+    pl_path = os.path.join(STORAGE_DIR, uid, 'playlists.json')
+    with _pljson_lock:
+        if not os.path.exists(pl_path):
+            return
+        with open(pl_path, 'r', encoding='utf-8') as f:
+            pls = json.load(f)
+        for pl in pls:
+            if pl['id'] == pl_id:
+                if file_id not in pl['items']:
+                    pl['items'].append(file_id)
+                break
+        with open(pl_path, 'w', encoding='utf-8') as f:
+            json.dump(pls, f, ensure_ascii=False)
+
+def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, auto_lyrics=False, metadata=None, playlist_id=None):
     ctx = _pl_sem if use_sem else __import__('contextlib').nullcontext()
     with ctx:
         try:
@@ -253,9 +281,14 @@ def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, 
                         db = json.load(f)
                 db.append({"id": file_id, "uid": uid, "filename": title, "file": filename,
                            "lrc_file": lrc_filename, "thumbnail": thumbnail,
-                           "artist": artist or uploader, "type": mode, "created_at": file_id})
+                           "artist": artist or uploader, "type": mode, "created_at": file_id,
+                           "playlist_id": playlist_id})
                 with open(db_path, 'w', encoding='utf-8') as f:
                     json.dump(db, f, ensure_ascii=False, indent=2)
+
+            # 플레이리스트에 자동 추가
+            if playlist_id is not None:
+                _add_to_playlist_internal(uid, playlist_id, file_id)
 
             jobs[job_id].update({"progress": 100, "status": "완료 ✓"})
             print(f"✅ {title}")
@@ -294,6 +327,11 @@ def extract():
         convert = data.get('convert_sc', False)
         job_ids = []
 
+        # 플레이리스트 자동 생성
+        pl_id = int(time.time() * 1000)
+        pl_title = (meta.get('title') or meta.get('playlist_title') or '').strip() or f'Playlist {pl_id}'
+        _create_playlist_internal(uid, pl_title, pl_id)
+
         # SC→YT 변환 옵션: flat-playlist 제목이 있으면 ytsearch, 없으면 SC 직접 다운로드
         for i, entry in enumerate(entries):
             jid = str(int(time.time() * 1000) + i)
@@ -318,25 +356,25 @@ def extract():
                 threading.Thread(target=_run_single,
                                  kwargs=dict(url=yt_url, job_id=jid, mode=mode, uid=uid,
                                              artist=a, selected_lyrics=None,
-                                             use_sem=True, auto_lyrics=auto_lyrics),
+                                             use_sem=True, auto_lyrics=auto_lyrics,
+                                             playlist_id=pl_id),
                                  daemon=True).start()
             else:
                 # SC 직접 다운로드 (제목 없어도 _run_single에서 Step 1 fallback으로 처리)
                 display_title = t or f'Track {i+1}'
                 jobs[jid] = {"title": display_title, "progress": 0, "status": "대기 중",
                              "thumbnail": entry.get('thumbnail', '') or '', "error": None}
-                # metadata 전달 → _run_single에서 Step 1(--print) 생략, 레이트리밋 방지
-                # (title 비어있으면 _run_single 내부에서 fallback Step 1 수행)
                 threading.Thread(target=_run_single,
                                  kwargs=dict(url=track_url, job_id=jid, mode=mode, uid=uid,
                                              artist=artist or a, selected_lyrics=None,
                                              use_sem=True, auto_lyrics=auto_lyrics,
-                                             metadata=entry),
+                                             metadata=entry, playlist_id=pl_id),
                                  daemon=True).start()
             job_ids.append(jid)
 
         return jsonify({"success": True, "job_ids": job_ids, "count": len(job_ids),
-                        "msg": f"플레이리스트 {len(job_ids)}곡 추출 시작"})
+                        "playlist_title": pl_title,
+                        "msg": f"플레이리스트 '{pl_title}' {len(job_ids)}곡 추출 시작"})
 
     # 단일 트랙
     job_id = str(int(time.time() * 1000))

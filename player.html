@@ -425,7 +425,7 @@
             await loadData();
 
             if (activeView === 'all') {
-                trackList = allFiles;
+                trackList = allFiles.filter(f => !f.playlist_id);
                 if (!trackList.length) {
                     container.innerHTML = '<div class="empty"><div class="icon">🎵</div>No tracks yet.<br>Use Maker to add music!</div>';
                     return;
@@ -456,6 +456,7 @@
                     <div class="playlist-card" onclick='openPlaylist(${p.id}, "${p.name.replace(/"/g,"&quot;")}") '>
                         <div class="icon">📁</div>
                         <div class="name">${p.name}</div>
+                        <div style="font-size:0.72rem;color:#666;margin-top:4px;">${p.items.length}곡</div>
                     </div>
                 `).join('') + '</div>';
             }
