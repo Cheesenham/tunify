@@ -883,7 +883,7 @@
 
         async function loadData() {
             try {
-                const r = await apiFetch(`${PI_URL}/api/files`);
+                const r = await apiFetch(`${PI_URL}/api/files?uid=${UID}`);
                 const d = await r.json();
                 allFiles = (d.files || []).map(f => ({
                     ...f,
@@ -1699,7 +1699,7 @@
         async function deleteTrack(id, name) {
             if (!confirm(`"${name}" 삭제할까요?`)) return;
             try {
-                await apiFetch(`${PI_URL}/api/files/${id}`, { method: 'DELETE' });
+                await apiFetch(`${PI_URL}/api/files/${id}?uid=${UID}`, { method: 'DELETE' });
                 if (currentItem && String(currentItem.id) === String(id)) {
                     audio.pause();
                     audio.src = '';

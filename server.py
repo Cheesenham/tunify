@@ -396,11 +396,14 @@ def get_jobs():
 # --- 파일 목록 ---
 @app.route('/api/files')
 def get_files():
+    uid = request.args.get('uid', '').strip()
     db_path = os.path.join(STORAGE_DIR, 'db.json')
     if not os.path.exists(db_path):
         return jsonify({"success": True, "files": []})
     with open(db_path, 'r', encoding='utf-8') as f:
         db = json.load(f)
+    if uid:
+        db = [item for item in db if item.get('uid') == uid]
     for item in db:
         item['path'] = f"/api/media/{item['uid']}/{item['file']}"
         item['lrc_path'] = f"/api/media/{item['uid']}/{item['lrc_file']}" if item.get('lrc_file') else None
@@ -445,6 +448,7 @@ def edit_lyrics():
 # --- 파일 삭제 ---
 @app.route('/api/files/<file_id>', methods=['DELETE'])
 def delete_file(file_id):
+    requester_uid = request.args.get('uid', '').strip()
     db_path = os.path.join(STORAGE_DIR, 'db.json')
     if not os.path.exists(db_path):
         return jsonify({"success": False, "msg": "DB 없음"})
@@ -453,6 +457,8 @@ def delete_file(file_id):
     item = next((x for x in db if str(x['id']) == file_id), None)
     if not item:
         return jsonify({"success": False, "msg": "항목 없음"})
+    if requester_uid and item.get('uid') != requester_uid:
+        return jsonify({"success": False, "msg": "권한 없음"}), 403
     uid = item['uid']
     for fname in [item.get('file'), item.get('lrc_file')]:
         if fname:
