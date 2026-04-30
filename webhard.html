@@ -216,7 +216,7 @@ let PI_URL = '', UID = '', currentPath = '/', renameTarget = '', previewPath = '
 
 // ── INIT ──────────────────────────────────────────────────────
 window.onload = () => {
-  PI_URL = localStorage.getItem('MPL_PI') || '';
+  PI_URL = localStorage.getItem('MPL_URL') || '';
   UID    = localStorage.getItem('MPL_USER') || '';
   const webhard = localStorage.getItem('MPL_WEBHARD') === '1';
   if (!UID) { showLogin(); return; }
@@ -235,7 +235,7 @@ window.onload = () => {
 function showLogin() {
   document.getElementById('login-wrap').style.display='flex';
   document.getElementById('app').style.display='none';
-  const saved = localStorage.getItem('MPL_PI');
+  const saved = localStorage.getItem('MPL_URL');
   if (saved) document.getElementById('lpi-url').value = saved;
 }
 
@@ -254,7 +254,7 @@ async function doLogin() {
     const d = await r.json();
     if (!d.success) { err.textContent = d.error||'로그인 실패'; return; }
     if (!d.webhard && d.role !== 'admin') { err.textContent='웹하드 접근 권한이 없습니다.'; return; }
-    localStorage.setItem('MPL_PI', url);
+    localStorage.setItem('MPL_URL', url);
     localStorage.setItem('MPL_USER', d.uid);
     localStorage.setItem('MPL_NICKNAME', d.nickname);
     localStorage.setItem('MPL_ROLE', d.role);
