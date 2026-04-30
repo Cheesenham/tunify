@@ -860,7 +860,10 @@ def webhard_mkdir():
     new_dir = os.path.join(target_dir, name)
     if not os.path.normpath(new_dir).startswith(os.path.normpath(WEBHARD_DIR)):
         return jsonify({'success': False, 'msg': '잘못된 경로'}), 400
-    os.makedirs(new_dir, exist_ok=True)
+    try:
+        os.makedirs(new_dir, exist_ok=True)
+    except Exception as e:
+        return jsonify({'success': False, 'msg': str(e)}), 500
     return jsonify({'success': True})
 
 @app.route('/api/webhard/rename', methods=['POST'])
@@ -892,6 +895,14 @@ def toggle_webhard(target_uid):
     users[target_uid]['webhard'] = bool(data.get('enabled', False))
     _save_users(users)
     return jsonify({'success': True})
+
+@app.errorhandler(500)
+def internal_error(e):
+    return jsonify({'success': False, 'msg': str(e)}), 500
+
+@app.errorhandler(413)
+def too_large(e):
+    return jsonify({'success': False, 'msg': '파일이 너무 큽니다'}), 413
 
 if __name__ == '__main__':
     print("🚀 MPL Server 시작 (Port: 5000)")
