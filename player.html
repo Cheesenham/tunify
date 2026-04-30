@@ -240,6 +240,34 @@
             }
         }
 
+        /* Wide screen: inline queue alongside lyrics */
+        .np-queue-inline {
+            display: none; flex-direction: column;
+            border-radius: 10px; border: 1px solid #222;
+            overflow: hidden; min-height: 0; min-width: 0;
+        }
+        .np-queue-inline-hdr {
+            padding: 9px 14px; font-size: 0.7rem; color: #666;
+            text-transform: uppercase; letter-spacing: 1px;
+            border-bottom: 1px solid #222; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .np-queue-inline-list { overflow-y: auto; flex: 1; padding: 4px; }
+        .np-queue-inline-list::-webkit-scrollbar { width: 3px; }
+        .np-queue-inline-list::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+        @media (min-width: 900px) {
+            .np-body { flex-direction: row !important; }
+            .np-left {
+                width: 280px; flex-shrink: 0; max-height: none !important;
+                padding: 16px 20px; gap: 12px; justify-content: center;
+                border-right: 1px solid #222; overflow-y: auto;
+            }
+            .np-art-wrap { width: 160px !important; height: 160px !important; }
+            .np-lyrics-wrap { flex: 1; margin: 12px; min-height: 0; align-self: stretch; }
+            .np-queue-inline { display: flex; width: 44%; max-width: 400px; margin: 12px 12px 12px 0; }
+        }
+
         /* ── Mobile main UI ── */
         .bottom-nav {
             display: none; position: fixed; bottom: var(--player-h); left: 0; right: 0;
@@ -359,6 +387,13 @@
             </div>
             <div class="np-lyrics-wrap" id="np-lyrics-wrap">
                 <div class="np-no-lyrics">가사가 없습니다.</div>
+            </div>
+            <div class="np-queue-inline" id="np-queue-inline">
+                <div class="np-queue-inline-hdr">
+                    <span>재생 대기열</span>
+                    <button class="queue-btn" onclick="shuffleQueue()" style="padding:3px 8px;font-size:0.68rem;">🔀</button>
+                </div>
+                <div class="np-queue-inline-list" id="np-queue-inline-list"></div>
             </div>
         </div>
     </div>
@@ -497,6 +532,7 @@
         let longPressFired = false;
         let prefetchCache = {};      // id → blobUrl 미리 불러온 곡
         let prefetchTriggered = false;
+        let playGeneration = 0;
 
         // --- View ---
         function setView(v) {
@@ -619,6 +655,7 @@
         }
 
         async function playSong(item, idx) {
+            const gen = ++playGeneration;
             currentItem = item;
             currentIdx = idx ?? playContextList.findIndex(f => f.id === item.id);
             document.querySelectorAll('.track-item').forEach(el => el.classList.remove('playing'));
@@ -635,38 +672,46 @@
             document.getElementById('play-btn').innerText = '⏸';
             document.getElementById('np-play-btn').innerText = '⏸';
             lyrics = []; syncOffset = 0; prefetchTriggered = false;
+            renderQueueInline();
 
             audio.pause();
             if (audio._blobUrl) { URL.revokeObjectURL(audio._blobUrl); audio._blobUrl = null; }
             try {
-                // 미리 불러온 캐시가 있으면 즉시 재생
+                let blobUrl;
                 if (prefetchCache[item.id]) {
-                    audio._blobUrl = prefetchCache[item.id];
+                    blobUrl = prefetchCache[item.id];
                     delete prefetchCache[item.id];
                 } else {
                     const resp = await apiFetch(item.url);
+                    if (gen !== playGeneration) return;
                     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                     const blob = await resp.blob();
-                    audio._blobUrl = URL.createObjectURL(blob);
+                    if (gen !== playGeneration) return;
+                    blobUrl = URL.createObjectURL(blob);
                 }
-                audio.src = audio._blobUrl;
+                if (gen !== playGeneration) { URL.revokeObjectURL(blobUrl); return; }
+                audio._blobUrl = blobUrl;
+                audio.src = blobUrl;
                 document.getElementById('now-title').style.color = 'white';
                 audio.play().catch(e => console.error('play:', e));
-                // 재생 시작 후 다음 곡 prefetch 시작
                 setTimeout(prefetchNext, 2000);
             } catch(e) {
+                if (gen !== playGeneration) return;
                 document.getElementById('now-title').innerText = '로드 실패: ' + e.message;
                 document.getElementById('now-title').style.color = '#f87171';
                 return;
             }
 
+            if (gen !== playGeneration) return;
             if (item.mpl_url) {
                 try {
                     const r = await apiFetch(item.mpl_url);
+                    if (gen !== playGeneration) return;
                     const d = await r.json();
                     lyrics = d.synced_lyrics || [];
                 } catch(e) {}
             }
+            if (gen !== playGeneration) return;
             renderNPLyrics();
         }
 
@@ -848,6 +893,39 @@
             const cnt = document.getElementById('queue-count');
             cnt.style.display = n > 0 ? 'flex' : 'none';
             cnt.innerText = n;
+            renderQueueInline();
+        }
+
+        function inlineQueueItemHTML(t, i, isManual) {
+            return `<div class="queue-item">
+                <div class="track-thumb-wrap" style="width:32px;height:32px;flex-shrink:0;">
+                    <img class="track-thumb" src="${t.thumbnail||''}" onerror="this.style.opacity=0" style="width:32px;height:32px;">
+                </div>
+                <div class="queue-item-info">
+                    <div class="queue-item-title">${t.filename}</div>
+                    <div class="queue-item-artist">${t.artist||'—'}</div>
+                </div>
+                ${isManual ? `<button class="queue-item-remove" onclick="removeFromQueue(${i})">✕</button>` : ''}
+            </div>`;
+        }
+
+        function renderQueueInline() {
+            const list = document.getElementById('np-queue-inline-list');
+            if (!list) return;
+            const upcoming = getUpcomingTracks(8);
+            let html = '';
+            if (playQueue.length) {
+                html += `<div style="padding:6px 10px 3px;font-size:0.65rem;color:#555;text-transform:uppercase;letter-spacing:1px;">Play Next</div>`;
+                html += playQueue.map((t, i) => inlineQueueItemHTML(t, i, true)).join('');
+                html += `<div style="margin:4px 0;border-top:1px solid #222;"></div>`;
+            }
+            const autoTracks = upcoming.slice(playQueue.length);
+            if (autoTracks.length) {
+                html += `<div style="padding:6px 10px 3px;font-size:0.65rem;color:#555;text-transform:uppercase;letter-spacing:1px;">자동 재생 예정</div>`;
+                html += autoTracks.map((t, i) => inlineQueueItemHTML(t, i, false)).join('');
+            }
+            if (!html) html = '<div style="padding:20px;text-align:center;color:#444;font-size:0.82rem;">대기열 없음</div>';
+            list.innerHTML = html;
         }
         function openQueue() {
             renderQueue();
@@ -891,6 +969,7 @@
             }
             if (!html) html = '<div style="padding:24px;text-align:center;color:#444;font-size:0.85rem;">재생 목록이 없습니다.</div>';
             list.innerHTML = html;
+            renderQueueInline();
         }
 
         function addAutoToQueue(autoIdx) {
