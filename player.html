@@ -898,6 +898,7 @@
 
         function inlineQueueItemHTML(t, i, isManual) {
             return `<div class="queue-item">
+                ${!isManual ? `<button class="drag-handle" onclick="addAutoToQueue(${i})" title="Play Next에 추가" style="cursor:pointer;">≡</button>` : ''}
                 <div class="track-thumb-wrap" style="width:32px;height:32px;flex-shrink:0;">
                     <img class="track-thumb" src="${t.thumbnail||''}" onerror="this.style.opacity=0" style="width:32px;height:32px;">
                 </div>
@@ -934,9 +935,10 @@
         function closeQueue() { document.getElementById('queue-panel').classList.remove('open'); }
 
         function queueItemHTML(t, i, isManual) {
+            const flatIdx = isManual ? i : playQueue.length + i;
             const isPrefetched = !!prefetchCache[t.id];
-            return `<div class="queue-item" ${isManual ? `data-midx="${i}"` : ''}>
-                ${isManual ? `<button class="drag-handle" ontouchstart="startDrag(event,${i})" onmousedown="startDrag(event,${i})">≡</button>` : ''}
+            return `<div class="queue-item" data-drag-i="${flatIdx}">
+                <button class="drag-handle" ontouchstart="startDrag(event,${flatIdx})" onmousedown="startDrag(event,${flatIdx})">≡</button>
                 <div class="track-thumb-wrap" style="width:36px;height:36px;flex-shrink:0;">
                     <img class="track-thumb" src="${t.thumbnail||''}" onerror="this.style.opacity=0" style="width:36px;height:36px;">
                 </div>
@@ -1000,12 +1002,13 @@
         }
 
         // --- Drag to reorder queue ---
-        let dragIdx = -1, dragOverIdx = -1;
+        let dragIdx = -1, dragOverIdx = -1, dragIsAuto = false;
 
-        function startDrag(e, idx) {
+        function startDrag(e, flatIdx) {
             e.preventDefault();
-            dragIdx = idx;
-            dragOverIdx = idx;
+            dragIdx = flatIdx;
+            dragOverIdx = flatIdx;
+            dragIsAuto = flatIdx >= playQueue.length;
             document.addEventListener('touchmove', onDragMove, { passive: false });
             document.addEventListener('touchend', onDragEnd);
             document.addEventListener('mousemove', onDragMove);
@@ -1017,23 +1020,19 @@
             if (dragIdx < 0) return;
             e.preventDefault();
             const y = e.touches ? e.touches[0].clientY : e.clientY;
-            const items = [...document.querySelectorAll('.queue-item[data-midx]')];
-            let newOver = dragOverIdx;
+            const items = [...document.querySelectorAll('.queue-inner .queue-item[data-drag-i]')];
+            let newOver = items.length ? parseInt(items[items.length - 1].dataset.dragI) + 1 : 0;
             for (let i = 0; i < items.length; i++) {
                 const rect = items[i].getBoundingClientRect();
-                const mid = rect.top + rect.height / 2;
-                if (y < mid) { newOver = i; break; }
-                newOver = i + 1;
+                if (y < rect.top + rect.height / 2) { newOver = parseInt(items[i].dataset.dragI); break; }
             }
-            newOver = Math.max(0, Math.min(newOver, playQueue.length - 1));
-            if (newOver !== dragOverIdx) {
-                dragOverIdx = newOver;
-                updateDragVisual();
-            }
+            newOver = Math.max(0, newOver);
+            if (newOver !== dragOverIdx) { dragOverIdx = newOver; updateDragVisual(); }
         }
 
         function updateDragVisual() {
-            document.querySelectorAll('.queue-item[data-midx]').forEach((el, i) => {
+            document.querySelectorAll('.queue-inner .queue-item[data-drag-i]').forEach(el => {
+                const i = parseInt(el.dataset.dragI);
                 el.classList.toggle('drag-source', i === dragIdx);
                 el.classList.remove('drag-over-top', 'drag-over-bottom');
                 if (i === dragOverIdx && dragOverIdx !== dragIdx) {
@@ -1048,11 +1047,29 @@
             document.removeEventListener('mousemove', onDragMove);
             document.removeEventListener('mouseup', onDragEnd);
             if (dragIdx >= 0 && dragOverIdx !== dragIdx) {
-                const [item] = playQueue.splice(dragIdx, 1);
-                playQueue.splice(dragOverIdx, 0, item);
-                updateQueueBadge();
+                if (dragIsAuto) {
+                    // 자동 항목 → Play Next로 승격
+                    const upcoming = getUpcomingTracks(8);
+                    const autoTracks = upcoming.slice(playQueue.length);
+                    const autoLocalIdx = dragIdx - playQueue.length;
+                    if (autoLocalIdx >= 0 && autoLocalIdx < autoTracks.length) {
+                        const item = autoTracks[autoLocalIdx];
+                        const targetPos = Math.min(dragOverIdx, playQueue.length);
+                        playQueue.splice(targetPos, 0, item);
+                        updateQueueBadge();
+                    }
+                } else {
+                    // 수동 항목 재정렬
+                    if (dragIdx < playQueue.length) {
+                        const clampedTarget = Math.min(dragOverIdx, playQueue.length);
+                        const targetPos = clampedTarget > dragIdx ? clampedTarget - 1 : clampedTarget;
+                        const [item] = playQueue.splice(dragIdx, 1);
+                        playQueue.splice(Math.min(targetPos, playQueue.length), 0, item);
+                        updateQueueBadge();
+                    }
+                }
             }
-            dragIdx = -1; dragOverIdx = -1;
+            dragIdx = -1; dragOverIdx = -1; dragIsAuto = false;
             renderQueue();
         }
 
