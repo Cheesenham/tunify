@@ -1304,19 +1304,36 @@
                 const d = await r.json();
                 if (!d.success) { alert(d.msg || '적용 실패'); }
                 else {
-                    // 로컬 캐시 업데이트
-                    const newThumb = PI_URL + d.thumbnail;
+                    // 캐시 버스팅 포함 전체 URL
+                    const newThumb = PI_URL + d.thumbnail + '?t=' + Date.now();
+                    const targetId = coverTargetItem.id;
+                    // 모든 인메모리 배열 업데이트
                     [allFiles, trackList, playContextList].forEach(arr => {
-                        const f = arr.find(x => x.id === coverTargetItem.id);
-                        if (f) { f.thumbnail = newThumb; if (arr === allFiles) f.thumbnail = newThumb; }
+                        const f = arr.find(x => x.id === targetId);
+                        if (f) f.thumbnail = newThumb;
                     });
-                    if (currentItem?.id === coverTargetItem.id) {
+                    // NP 화면 직접 업데이트
+                    if (currentItem?.id === targetId) {
                         document.getElementById('np-art').src = newThumb;
                         document.getElementById('now-thumb').src = newThumb;
                         currentItem.thumbnail = newThumb;
                     }
+                    // renderView() 대신 DOM 직접 패치 (재fetch 없이)
+                    document.querySelectorAll('.track-item').forEach(el => {
+                        const idx = parseInt(el.dataset.idx);
+                        if (isNaN(idx)) return;
+                        const track = trackList[idx];
+                        if (!track || track.id !== targetId) return;
+                        const img = el.querySelector('img.track-thumb');
+                        const wrap = el.querySelector('.track-thumb-wrap');
+                        if (!img || !wrap) return;
+                        img.src = newThumb;
+                        img.style.opacity = '1';
+                        wrap.classList.remove('no-cover');
+                        // 커버 있으면 클릭 이벤트 제거
+                        wrap.onclick = null;
+                    });
                     closeCoverModal();
-                    renderView();
                 }
             } catch(e) { alert(e.message); }
             btn.disabled = false; btn.innerText = '적용';

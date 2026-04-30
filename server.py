@@ -235,6 +235,42 @@ def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, 
 
             jobs[job_id].update({"title": title, "thumbnail": thumbnail, "progress": 20, "status": "다운로드 중..."})
 
+            # ─── 공유 음원 체크: 같은 URL이 이미 다른 계정에 존재하면 재사용 ───
+            db_path = os.path.join(STORAGE_DIR, 'db.json')
+            with _db_lock:
+                _existing_db = []
+                if os.path.exists(db_path):
+                    with open(db_path, 'r', encoding='utf-8') as _f:
+                        _existing_db = json.load(_f)
+                _shared_src = next(
+                    (x for x in _existing_db
+                     if x.get('source_url') == actual_url
+                     and os.path.exists(os.path.join(STORAGE_DIR, x.get('file_uid', x['uid']), x['file']))),
+                    None
+                )
+                if _shared_src:
+                    _src_uid = _shared_src.get('file_uid', _shared_src['uid'])
+                    _existing_db.append({
+                        "id": file_id, "uid": uid,
+                        "filename": title or _shared_src['filename'],
+                        "file": _shared_src['file'], "file_uid": _src_uid,
+                        "lrc_file": _shared_src.get('lrc_file'),
+                        "lrc_uid": _src_uid,
+                        "thumbnail": thumbnail or _shared_src.get('thumbnail', ''),
+                        "artist": artist or uploader or _shared_src.get('artist', ''),
+                        "type": _shared_src.get('type', mode),
+                        "created_at": file_id, "playlist_id": playlist_id,
+                        "source_url": actual_url, "shared_from": _src_uid
+                    })
+                    with open(db_path, 'w', encoding='utf-8') as _f:
+                        json.dump(_existing_db, _f, ensure_ascii=False, indent=2)
+                if _shared_src:
+                    if playlist_id is not None:
+                        _add_to_playlist_internal(uid, playlist_id, file_id)
+                    jobs[job_id].update({"progress": 100, "status": "완료 (공유) ✓"})
+                    print(f"✅ {title} [공유]")
+                    return
+
             # Step 2: 다운로드 (--print 없이, 확정된 URL 사용)
             dl_cmd = [YTDLP, '--no-warnings', '-o', tmp_base + '.%(ext)s']
             if mode == 'music':
@@ -283,7 +319,7 @@ def _run_single(url, job_id, mode, uid, artist, selected_lyrics, use_sem=False, 
                 db.append({"id": file_id, "uid": uid, "filename": title, "file": filename,
                            "lrc_file": lrc_filename, "thumbnail": thumbnail,
                            "artist": artist or uploader, "type": mode, "created_at": file_id,
-                           "playlist_id": playlist_id})
+                           "playlist_id": playlist_id, "source_url": actual_url})
                 with open(db_path, 'w', encoding='utf-8') as f:
                     json.dump(db, f, ensure_ascii=False, indent=2)
 
@@ -405,8 +441,10 @@ def get_files():
     if uid:
         db = [item for item in db if item.get('uid') == uid]
     for item in db:
-        item['path'] = f"/api/media/{item['uid']}/{item['file']}"
-        item['lrc_path'] = f"/api/media/{item['uid']}/{item['lrc_file']}" if item.get('lrc_file') else None
+        _fuid = item.get('file_uid', item['uid'])
+        _luid = item.get('lrc_uid', _fuid)
+        item['path'] = f"/api/media/{_fuid}/{item['file']}"
+        item['lrc_path'] = f"/api/media/{_luid}/{item['lrc_file']}" if item.get('lrc_file') else None
     return jsonify({"success": True, "files": sorted(db, key=lambda x: -x['created_at'])})
 
 # --- 파일 서빙 ---
