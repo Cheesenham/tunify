@@ -98,6 +98,11 @@
         .queue-item-artist { font-size: 0.72rem; color: var(--sc-muted); margin-top: 1px; }
         .queue-item-remove { background: none; border: none; color: #555; cursor: pointer; font-size: 1rem; padding: 4px 6px; border-radius: 4px; transition: 0.12s; flex-shrink: 0; }
         .queue-item-remove:hover { color: #f87171; }
+        .drag-handle { background: none; border: none; color: #444; cursor: grab; font-size: 1.1rem; padding: 6px 8px; touch-action: none; user-select: none; flex-shrink: 0; line-height: 1; }
+        .drag-handle:active { cursor: grabbing; color: #aaa; }
+        .queue-item.drag-source { opacity: 0.4; background: rgba(255,85,0,0.05); }
+        .queue-item.drag-over-top { border-top: 2px solid var(--sc-orange); }
+        .queue-item.drag-over-bottom { border-bottom: 2px solid var(--sc-orange); }
 
         .player-bar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 90; height: var(--player-h); background: #111; border-top: 1px solid var(--sc-border); display: flex; align-items: center; padding: 0 20px; gap: 20px; }
         .now-playing { display: flex; align-items: center; gap: 12px; width: 240px; flex-shrink: 0; }
@@ -852,7 +857,8 @@
 
         function queueItemHTML(t, i, isManual) {
             const isPrefetched = !!prefetchCache[t.id];
-            return `<div class="queue-item">
+            return `<div class="queue-item" ${isManual ? `data-midx="${i}"` : ''}>
+                ${isManual ? `<button class="drag-handle" ontouchstart="startDrag(event,${i})" onmousedown="startDrag(event,${i})">≡</button>` : ''}
                 <div class="track-thumb-wrap" style="width:36px;height:36px;flex-shrink:0;">
                     <img class="track-thumb" src="${t.thumbnail||''}" onerror="this.style.opacity=0" style="width:36px;height:36px;">
                 </div>
@@ -911,6 +917,63 @@
                 const j = Math.floor(Math.random() * (i + 1));
                 [playQueue[i], playQueue[j]] = [playQueue[j], playQueue[i]];
             }
+            renderQueue();
+        }
+
+        // --- Drag to reorder queue ---
+        let dragIdx = -1, dragOverIdx = -1;
+
+        function startDrag(e, idx) {
+            e.preventDefault();
+            dragIdx = idx;
+            dragOverIdx = idx;
+            document.addEventListener('touchmove', onDragMove, { passive: false });
+            document.addEventListener('touchend', onDragEnd);
+            document.addEventListener('mousemove', onDragMove);
+            document.addEventListener('mouseup', onDragEnd);
+            updateDragVisual();
+        }
+
+        function onDragMove(e) {
+            if (dragIdx < 0) return;
+            e.preventDefault();
+            const y = e.touches ? e.touches[0].clientY : e.clientY;
+            const items = [...document.querySelectorAll('.queue-item[data-midx]')];
+            let newOver = dragOverIdx;
+            for (let i = 0; i < items.length; i++) {
+                const rect = items[i].getBoundingClientRect();
+                const mid = rect.top + rect.height / 2;
+                if (y < mid) { newOver = i; break; }
+                newOver = i + 1;
+            }
+            newOver = Math.max(0, Math.min(newOver, playQueue.length - 1));
+            if (newOver !== dragOverIdx) {
+                dragOverIdx = newOver;
+                updateDragVisual();
+            }
+        }
+
+        function updateDragVisual() {
+            document.querySelectorAll('.queue-item[data-midx]').forEach((el, i) => {
+                el.classList.toggle('drag-source', i === dragIdx);
+                el.classList.remove('drag-over-top', 'drag-over-bottom');
+                if (i === dragOverIdx && dragOverIdx !== dragIdx) {
+                    el.classList.add(dragOverIdx < dragIdx ? 'drag-over-top' : 'drag-over-bottom');
+                }
+            });
+        }
+
+        function onDragEnd() {
+            document.removeEventListener('touchmove', onDragMove);
+            document.removeEventListener('touchend', onDragEnd);
+            document.removeEventListener('mousemove', onDragMove);
+            document.removeEventListener('mouseup', onDragEnd);
+            if (dragIdx >= 0 && dragOverIdx !== dragIdx) {
+                const [item] = playQueue.splice(dragIdx, 1);
+                playQueue.splice(dragOverIdx, 0, item);
+                updateQueueBadge();
+            }
+            dragIdx = -1; dragOverIdx = -1;
             renderQueue();
         }
 
