@@ -318,12 +318,139 @@
         .lrc-apply { background: var(--sc-orange); color: white; }
         .lrc-cancel { background: #333; color: #aaa; }
         .lrc-status { padding: 16px; text-align: center; color: var(--sc-muted); font-size: 0.83rem; }
+
+        /* ── Login Screen ── */
+        .login-screen {
+            display: none; position: fixed; inset: 0; z-index: 9999;
+            background: var(--sc-bg); flex-direction: column;
+            align-items: center; justify-content: center;
+        }
+        .login-screen.open { display: flex; }
+        .login-card {
+            background: #1e1e1e; border: 1px solid #2a2a2a; border-radius: 16px;
+            padding: 38px 32px; width: min(360px, 88vw);
+            display: flex; flex-direction: column; gap: 14px; align-items: stretch;
+        }
+        .login-brand { text-align: center; margin-bottom: 4px; }
+        .login-brand .logo { font-size: 2rem; font-weight: 800; color: var(--sc-orange); }
+        .login-brand .sub { font-size: 0.82rem; color: #555; margin-top: 4px; }
+        .login-card input {
+            padding: 12px 14px; background: #111; border: 1px solid #333;
+            border-radius: 8px; color: white; font-size: 0.9rem;
+            font-family: inherit; outline: none; transition: 0.12s;
+        }
+        .login-card input:focus { border-color: var(--sc-orange); }
+        .login-card .login-btn {
+            padding: 13px; background: var(--sc-orange); color: white; border: none;
+            border-radius: 8px; font-size: 0.9rem; font-weight: 700; cursor: pointer;
+            font-family: inherit; transition: 0.15s; margin-top: 4px;
+        }
+        .login-card .login-btn:hover { background: #e04d00; }
+        .login-error { color: #f87171; font-size: 0.8rem; min-height: 18px; text-align: center; }
+        .login-server-row { display: flex; gap: 6px; }
+        .login-server-row input { flex: 1; font-size: 0.8rem; padding: 8px 10px; }
+        .login-server-save { padding: 8px 12px; background: #333; color: #aaa; border: none;
+            border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 0.75rem;
+            white-space: nowrap; transition: 0.12s; }
+        .login-server-save:hover { background: #444; color: white; }
+
+        /* ── User badge in topnav ── */
+        .user-badge { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+        .user-badge .uname { font-size: 0.8rem; color: #aaa; }
+        .logout-btn { background: none; border: 1px solid #333; color: #666;
+            cursor: pointer; font-size: 0.72rem; padding: 4px 10px; border-radius: 20px;
+            font-family: inherit; transition: 0.12s; }
+        .logout-btn:hover { color: white; border-color: #555; }
+
+        /* ── NP Sync bar ── */
+        .np-sync-bar {
+            width: 100%; display: none; align-items: center; gap: 6px;
+            flex-shrink: 0; flex-wrap: wrap; justify-content: center;
+        }
+        .np-sync-bar.active { display: flex; }
+        .sync-offset-label { font-size: 0.72rem; color: #666; min-width: 52px; text-align: center; }
+        .sync-step-input {
+            width: 52px; padding: 4px 6px; background: #1a1a1a; border: 1px solid #333;
+            border-radius: 4px; color: white; font-size: 0.78rem; text-align: center;
+            font-family: inherit; outline: none;
+        }
+        .sync-step-input:focus { border-color: var(--sc-orange); }
+        .sync-apply-btn {
+            background: none; border: 1px solid #333; color: #aaa; cursor: pointer;
+            font-size: 0.8rem; padding: 4px 9px; border-radius: 4px;
+            font-family: inherit; transition: 0.12s;
+        }
+        .sync-apply-btn:hover { color: white; border-color: #555; }
+        .sync-save-btn {
+            background: var(--sc-orange); color: white; border: none; cursor: pointer;
+            font-size: 0.75rem; padding: 5px 12px; border-radius: 4px;
+            font-family: inherit; font-weight: 600; transition: 0.12s;
+        }
+        .sync-save-btn:hover { background: #e04d00; }
+
+        /* ── Users management modal ── */
+        .users-modal {
+            display: none; position: fixed; inset: 0; z-index: 400;
+            background: rgba(0,0,0,0.8); align-items: center; justify-content: center;
+        }
+        .users-modal.open { display: flex; }
+        .users-box {
+            background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 14px;
+            width: min(440px, 94vw); max-height: 80vh; display: flex; flex-direction: column;
+            overflow: hidden;
+        }
+        .users-box-hdr {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 18px; border-bottom: 1px solid #222; flex-shrink: 0;
+        }
+        .users-box-hdr h3 { font-size: 0.92rem; font-weight: 700; }
+        .users-body { overflow-y: auto; flex: 1; padding: 10px; }
+        .user-row {
+            display: flex; align-items: center; gap: 10px; padding: 9px 10px;
+            border-radius: 6px; border-bottom: 1px solid #1e1e1e;
+        }
+        .user-row:hover { background: rgba(255,255,255,0.03); }
+        .user-row-info { flex: 1; min-width: 0; }
+        .user-row-name { font-size: 0.85rem; font-weight: 600; }
+        .user-row-uid { font-size: 0.72rem; color: #555; margin-top: 1px; }
+        .user-row-role { font-size: 0.68rem; color: var(--sc-orange); padding: 2px 7px;
+            border: 1px solid rgba(255,85,0,0.3); border-radius: 20px; flex-shrink: 0; }
+        .user-row-actions { display: flex; gap: 4px; flex-shrink: 0; }
+        .user-act-btn { padding: 4px 9px; border-radius: 4px; border: 1px solid #333;
+            background: none; color: #888; font-size: 0.72rem; cursor: pointer;
+            font-family: inherit; transition: 0.12s; }
+        .user-act-btn:hover { color: white; border-color: #555; }
+        .user-act-btn.del { color: #ef4444; border-color: #4a1a1a; }
+        .user-act-btn.del:hover { background: rgba(239,68,68,0.1); border-color: #ef4444; }
+        .users-add-form {
+            padding: 12px 14px; border-top: 1px solid #222; flex-shrink: 0;
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        .users-add-form .add-row { display: flex; gap: 6px; }
+        .users-add-form input {
+            flex: 1; padding: 8px 10px; background: #111; border: 1px solid #333;
+            border-radius: 6px; color: white; font-size: 0.82rem; font-family: inherit; outline: none;
+        }
+        .users-add-form input:focus { border-color: var(--sc-orange); }
+        .add-user-btn {
+            padding: 9px 14px; background: var(--sc-orange); color: white; border: none;
+            border-radius: 6px; font-weight: 700; cursor: pointer; font-family: inherit;
+            font-size: 0.82rem; transition: 0.12s; white-space: nowrap;
+        }
+        .add-user-btn:hover { background: #e04d00; }
+
+        @media (max-width: 640px) {
+            .user-badge .uname { display: none; }
+        }
     </style>
 </head>
 <body>
     <nav class="topnav">
         <div class="logo">MPL</div>
-        <a href="/">← Home</a>
+        <div class="user-badge">
+            <span class="uname" id="user-name-display"></span>
+            <button class="logout-btn" onclick="logout()">로그아웃</button>
+        </div>
     </nav>
 
     <div class="main-wrap">
@@ -339,8 +466,11 @@
             <div class="nav-item" onclick="openCreatePlaylist()">
                 <span>＋</span> New Playlist
             </div>
-            <div class="nav-item" id="nav-sync" onclick="toggleSync()">
-                <span>⏱</span> Lyrics Sync
+            <div class="nav-item" onclick="window.location.href='/maker.html'">
+                <span>🎛</span> Maker
+            </div>
+            <div class="nav-item admin-only" id="nav-users" onclick="openUsersModal()" style="display:none;">
+                <span>👥</span> 계정 관리
             </div>
         </aside>
 
@@ -358,6 +488,7 @@
             <div style="display:flex;gap:6px;">
                 <button class="np-down-btn" id="np-shuffle-btn" onclick="toggleShuffle()" title="셔플" style="font-size:1rem;">⇄</button>
                 <button class="np-down-btn" onclick="openQueue()" title="재생 대기열" style="font-size:1rem;">☰</button>
+                <button class="np-down-btn" id="np-sync-toggle" onclick="toggleNPSync()" title="가사 싱크" style="font-size:1rem;">⏱</button>
                 <button class="np-down-btn" onclick="openLyricsSearch()" title="가사 검색" style="font-size:1rem;">🔍</button>
             </div>
         </div>
@@ -383,6 +514,13 @@
                     <button class="np-ctrl" onclick="prevTrack()">⏮</button>
                     <button class="np-play" id="np-play-btn" onclick="togglePlay()">▶</button>
                     <button class="np-ctrl" onclick="nextTrack()">⏭</button>
+                </div>
+                <div class="np-sync-bar" id="np-sync-bar">
+                    <span class="sync-offset-label" id="np-offset-label">±0.0s</span>
+                    <button class="sync-apply-btn" onclick="applyNPSync(-parseFloat(document.getElementById('np-sync-step').value)||0.5)">−</button>
+                    <input class="sync-step-input" id="np-sync-step" type="number" value="0.5" min="0.05" max="60" step="0.05">
+                    <button class="sync-apply-btn" onclick="applyNPSync(parseFloat(document.getElementById('np-sync-step').value)||0.5)">＋</button>
+                    <button class="sync-save-btn" id="np-sync-save" onclick="saveSync()" style="display:none;">저장</button>
                 </div>
             </div>
             <div class="np-lyrics-wrap" id="np-lyrics-wrap">
@@ -504,10 +642,57 @@
                 <span class="icon">＋</span>
                 <span>New</span>
             </button>
-            <button class="bnav-item" id="bnav-sync" onclick="toggleSync(); setBnavActive('sync')">
-                <span class="icon">⏱</span>
-                <span>Sync</span>
+            <button class="bnav-item" id="bnav-maker" onclick="window.location.href='/maker.html'">
+                <span class="icon">🎛</span>
+                <span>Maker</span>
             </button>
+        </div>
+    </div>
+
+    <!-- Login Screen -->
+    <div class="login-screen" id="login-screen">
+        <div class="login-card">
+            <div class="login-brand">
+                <div class="logo">MPL</div>
+                <div class="sub">Tunify Player</div>
+            </div>
+            <div class="login-error" id="login-error"></div>
+            <input type="text" id="login-uid" placeholder="아이디" autocomplete="username"
+                   onkeydown="if(event.key==='Enter') document.getElementById('login-pw').focus()">
+            <input type="password" id="login-pw" placeholder="비밀번호" autocomplete="current-password"
+                   onkeydown="if(event.key==='Enter') doLogin()">
+            <button class="login-btn" onclick="doLogin()">로그인</button>
+            <div style="border-top:1px solid #222; padding-top:10px;">
+                <div style="font-size:0.7rem;color:#444;margin-bottom:6px;">서버 주소</div>
+                <div class="login-server-row">
+                    <input type="url" id="login-server-url" placeholder="http://192.168.x.x:5000">
+                    <button class="login-server-save" onclick="saveServerUrl()">저장</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Users Management Modal (admin only) -->
+    <div class="users-modal" id="users-modal" onclick="closeUsersModal()">
+        <div class="users-box" onclick="event.stopPropagation()">
+            <div class="users-box-hdr">
+                <h3>👥 계정 관리</h3>
+                <button class="np-down-btn" onclick="closeUsersModal()">✕</button>
+            </div>
+            <div class="users-body" id="users-body">
+                <div style="text-align:center;color:#444;padding:20px;font-size:0.85rem;">불러오는 중...</div>
+            </div>
+            <div class="users-add-form">
+                <div style="font-size:0.72rem;color:#555;text-transform:uppercase;letter-spacing:1px;">새 계정 추가</div>
+                <div class="add-row">
+                    <input type="text" id="new-user-uid" placeholder="아이디">
+                    <input type="text" id="new-user-nickname" placeholder="닉네임">
+                </div>
+                <div class="add-row">
+                    <input type="password" id="new-user-pw" placeholder="비밀번호 (기본: 1234)">
+                    <button class="add-user-btn" onclick="createUser()">추가</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -515,7 +700,12 @@
 
     <script>
         const PI_URL = (localStorage.getItem('MPL_URL') || '').replace(/\/$/, '');
-        const UID = localStorage.getItem('MPL_USER') || 'admin';
+        let UID = localStorage.getItem('MPL_USER') || '';
+        let currentUser = {
+            uid: UID,
+            nickname: localStorage.getItem('MPL_NICKNAME') || UID,
+            role: localStorage.getItem('MPL_ROLE') || 'user'
+        };
         const NGROK_HEADERS = { 'ngrok-skip-browser-warning': 'true', 'Content-Type': 'application/json' };
         function apiFetch(url, opts = {}) {
             return fetch(url, { ...opts, headers: { ...NGROK_HEADERS, ...(opts.headers || {}) } });
@@ -533,6 +723,145 @@
         let prefetchCache = {};      // id → blobUrl 미리 불러온 곡
         let prefetchTriggered = false;
         let playGeneration = 0;
+
+        // --- Auth ---
+        function showLoginScreen() {
+            document.getElementById('login-screen').classList.add('open');
+            // 서버 URL 필드 초기화
+            const urlInput = document.getElementById('login-server-url');
+            if (urlInput) urlInput.value = localStorage.getItem('MPL_URL') || '';
+        }
+        function hideLoginScreen() {
+            document.getElementById('login-screen').classList.remove('open');
+        }
+        function saveServerUrl() {
+            const v = (document.getElementById('login-server-url').value || '').trim().replace(/\/$/, '');
+            localStorage.setItem('MPL_URL', v);
+            location.reload();
+        }
+        async function verifyAndInit() {
+            if (!PI_URL) { showLoginScreen(); return; }
+            try {
+                const r = await apiFetch(`${PI_URL}/api/me?uid=${UID}`);
+                const d = await r.json();
+                if (!d.success) { showLoginScreen(); return; }
+                currentUser = {uid: d.uid, nickname: d.nickname, role: d.role};
+                localStorage.setItem('MPL_NICKNAME', d.nickname);
+                localStorage.setItem('MPL_ROLE', d.role);
+            } catch(e) { /* 오프라인이어도 저장된 정보로 시작 */ }
+            initApp();
+        }
+        async function doLogin() {
+            const uid = document.getElementById('login-uid').value.trim();
+            const pw = document.getElementById('login-pw').value;
+            const errEl = document.getElementById('login-error');
+            if (!uid || !pw) { errEl.innerText = '아이디와 비밀번호를 입력하세요.'; return; }
+            if (!PI_URL) { errEl.innerText = '먼저 서버 주소를 저장하세요.'; return; }
+            errEl.innerText = '';
+            try {
+                const r = await apiFetch(`${PI_URL}/api/login`, {
+                    method: 'POST',
+                    body: JSON.stringify({uid, password: pw})
+                });
+                const d = await r.json();
+                if (!r.ok || !d.success) { errEl.innerText = d.error || '로그인 실패'; return; }
+                UID = d.uid;
+                currentUser = {uid: d.uid, nickname: d.nickname, role: d.role};
+                localStorage.setItem('MPL_USER', d.uid);
+                localStorage.setItem('MPL_NICKNAME', d.nickname);
+                localStorage.setItem('MPL_ROLE', d.role);
+                hideLoginScreen();
+                initApp();
+            } catch(e) {
+                errEl.innerText = '서버에 연결할 수 없습니다.';
+            }
+        }
+        function logout() {
+            ['MPL_USER','MPL_NICKNAME','MPL_ROLE'].forEach(k => localStorage.removeItem(k));
+            UID = ''; currentUser = {uid:'',nickname:'',role:'user'};
+            audio.pause(); audio.src = ''; currentItem = null;
+            document.getElementById('now-title').innerText = 'No track selected';
+            document.getElementById('now-title').style.color = 'var(--sc-muted)';
+            showLoginScreen();
+        }
+        function initApp() {
+            const el = document.getElementById('user-name-display');
+            if (el) el.innerText = currentUser.nickname || currentUser.uid;
+            // admin 전용 UI 표시
+            document.querySelectorAll('.admin-only').forEach(e => {
+                e.style.display = currentUser.role === 'admin' ? '' : 'none';
+            });
+            renderView();
+        }
+
+        // --- 계정 관리 (admin) ---
+        async function openUsersModal() {
+            document.getElementById('users-modal').classList.add('open');
+            await loadUsers();
+        }
+        function closeUsersModal() {
+            document.getElementById('users-modal').classList.remove('open');
+        }
+        async function loadUsers() {
+            const body = document.getElementById('users-body');
+            body.innerHTML = '<div style="text-align:center;color:#444;padding:20px;font-size:0.85rem;">불러오는 중...</div>';
+            try {
+                const r = await apiFetch(`${PI_URL}/api/users?uid=${UID}`);
+                const d = await r.json();
+                if (!d.success) { body.innerHTML = '<div style="color:#f87171;padding:14px;font-size:0.82rem;">' + (d.error||'오류') + '</div>'; return; }
+                body.innerHTML = d.users.map(u => `
+                    <div class="user-row">
+                        <div class="user-row-info">
+                            <div class="user-row-name">${u.nickname}</div>
+                            <div class="user-row-uid">${u.uid}</div>
+                        </div>
+                        ${u.role === 'admin' ? '<span class="user-row-role">admin</span>' : ''}
+                        <div class="user-row-actions">
+                            <button class="user-act-btn" onclick="promptResetPw('${u.uid}')">비번초기화</button>
+                            ${u.uid !== 'admin' ? `<button class="user-act-btn del" onclick="deleteUser('${u.uid}')">삭제</button>` : ''}
+                        </div>
+                    </div>`).join('') || '<div style="color:#444;padding:14px;font-size:0.82rem;">계정 없음</div>';
+            } catch(e) { body.innerHTML = `<div style="color:#f87171;padding:14px;font-size:0.82rem;">${e.message}</div>`; }
+        }
+        async function createUser() {
+            const uid = document.getElementById('new-user-uid').value.trim();
+            const nickname = document.getElementById('new-user-nickname').value.trim() || uid;
+            const pw = document.getElementById('new-user-pw').value || '1234';
+            if (!uid) return;
+            try {
+                const r = await apiFetch(`${PI_URL}/api/users`, {
+                    method: 'POST',
+                    body: JSON.stringify({admin_uid: UID, uid, nickname, password: pw})
+                });
+                const d = await r.json();
+                if (!d.success) { alert(d.error || '생성 실패'); return; }
+                document.getElementById('new-user-uid').value = '';
+                document.getElementById('new-user-nickname').value = '';
+                document.getElementById('new-user-pw').value = '';
+                loadUsers();
+            } catch(e) { alert(e.message); }
+        }
+        async function deleteUser(targetUid) {
+            if (!confirm(`"${targetUid}" 계정을 삭제할까요?`)) return;
+            try {
+                const r = await apiFetch(`${PI_URL}/api/users/${targetUid}?admin_uid=${UID}`, {method:'DELETE'});
+                const d = await r.json();
+                if (!d.success) { alert(d.error || '삭제 실패'); return; }
+                loadUsers();
+            } catch(e) { alert(e.message); }
+        }
+        async function promptResetPw(targetUid) {
+            const pw = prompt(`"${targetUid}" 새 비밀번호:`);
+            if (pw === null) return;
+            try {
+                const r = await apiFetch(`${PI_URL}/api/users/${targetUid}/reset`, {
+                    method: 'POST',
+                    body: JSON.stringify({admin_uid: UID, password: pw || '1234'})
+                });
+                const d = await r.json();
+                alert(d.success ? '비밀번호가 초기화되었습니다.' : (d.error || '실패'));
+            } catch(e) { alert(e.message); }
+        }
 
         // --- View ---
         function setView(v) {
@@ -1154,11 +1483,22 @@
             const sc = document.getElementById('sync-controls');
             const visible = sc.style.display !== 'none';
             sc.style.display = visible ? 'none' : 'flex';
-            document.getElementById('nav-sync').classList.toggle('active', !visible);
+        }
+        function toggleNPSync() {
+            const bar = document.getElementById('np-sync-bar');
+            const btn = document.getElementById('np-sync-toggle');
+            const active = bar.classList.toggle('active');
+            btn.style.color = active ? 'var(--sc-orange)' : '';
+        }
+        function applyNPSync(v) {
+            syncOffset = Math.round((syncOffset + v) * 100) / 100;
+            const label = document.getElementById('np-offset-label');
+            if (label) label.innerText = (syncOffset >= 0 ? '+' : '') + syncOffset.toFixed(2) + 's';
+            document.getElementById('np-sync-save').style.display = 'inline-block';
+            document.getElementById('save-btn').style.display = 'inline-block';
         }
         function adjustSync(v) {
-            syncOffset += v;
-            document.getElementById('save-btn').style.display = 'inline-block';
+            applyNPSync(v);
         }
         async function saveSync() {
             if (!currentItem) return;
@@ -1170,6 +1510,10 @@
             lyrics = adjusted;
             syncOffset = 0;
             document.getElementById('save-btn').style.display = 'none';
+            const label = document.getElementById('np-offset-label');
+            if (label) label.innerText = '±0.0s';
+            const npSave = document.getElementById('np-sync-save');
+            if (npSave) npSave.style.display = 'none';
         }
 
         // --- Playlists ---
@@ -1347,7 +1691,24 @@
             } catch(e) { alert('삭제 실패: ' + e.message); }
         }
 
-        window.onload = () => renderView();
+        window.onload = () => {
+            // 서버 URL 필드 초기화
+            const urlInput = document.getElementById('login-server-url');
+            if (urlInput) urlInput.value = localStorage.getItem('MPL_URL') || '';
+            const uid = localStorage.getItem('MPL_USER');
+            if (!uid) {
+                showLoginScreen();
+            } else {
+                UID = uid;
+                currentUser = {
+                    uid,
+                    nickname: localStorage.getItem('MPL_NICKNAME') || uid,
+                    role: localStorage.getItem('MPL_ROLE') || 'user'
+                };
+                // 세션 유효성 확인 후 앱 시작
+                verifyAndInit();
+            }
+        };
     </script>
 </body>
 </html>

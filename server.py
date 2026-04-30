@@ -18,6 +18,7 @@ os.makedirs(STORAGE_DIR, exist_ok=True)
 # yt-dlp 경로 자동 탐색
 import shutil
 YTDLP = shutil.which('yt-dlp') or '/home/lee/.local/bin/yt-dlp'
+USERS_FILE = os.path.join(BASE_DIR, 'db', 'users.json')
 
 # 작업 큐 (job_id → {title, progress, status, thumbnail})
 jobs = {}
@@ -510,6 +511,119 @@ def add_to_playlist():
     with open(pl_path, 'w', encoding='utf-8') as f:
         json.dump(playlists, f, ensure_ascii=False)
     return jsonify({"success": True})
+
+# ─── 계정 관리 ───────────────────────────────────────────────
+_users_lock = threading.Lock()
+
+def _load_users():
+    os.makedirs(os.path.dirname(USERS_FILE), exist_ok=True)
+    if not os.path.exists(USERS_FILE):
+        default = {"admin": {"pw": "1234", "role": "admin", "nickname": "Admin"}}
+        with open(USERS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(default, f, ensure_ascii=False, indent=2)
+        return default
+    with open(USERS_FILE, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+def _save_users(users):
+    with _users_lock:
+        with open(USERS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(users, f, ensure_ascii=False, indent=2)
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    data = request.json or {}
+    uid = data.get('uid', '').strip()
+    pw = data.get('password', '')
+    users = _load_users()
+    u = users.get(uid)
+    if not u or u.get('pw') != pw:
+        return jsonify({'success': False, 'error': '아이디 또는 비밀번호가 틀렸습니다.'}), 401
+    return jsonify({'success': True, 'uid': uid,
+                    'nickname': u.get('nickname', uid),
+                    'role': u.get('role', 'user')})
+
+@app.route('/api/me')
+def me():
+    uid = request.args.get('uid', '')
+    users = _load_users()
+    u = users.get(uid)
+    if not u:
+        return jsonify({'success': False}), 401
+    return jsonify({'success': True, 'uid': uid,
+                    'nickname': u.get('nickname', uid),
+                    'role': u.get('role', 'user')})
+
+@app.route('/api/users', methods=['GET'])
+def list_users():
+    uid = request.args.get('uid', '')
+    users = _load_users()
+    if users.get(uid, {}).get('role') != 'admin':
+        return jsonify({'error': '권한 없음'}), 403
+    return jsonify({'success': True, 'users': [
+        {'uid': k, 'nickname': v.get('nickname', k), 'role': v.get('role', 'user')}
+        for k, v in users.items()
+    ]})
+
+@app.route('/api/users', methods=['POST'])
+def create_user():
+    data = request.json or {}
+    admin_uid = data.get('admin_uid', '')
+    users = _load_users()
+    if users.get(admin_uid, {}).get('role') != 'admin':
+        return jsonify({'error': '권한 없음'}), 403
+    new_uid = data.get('uid', '').strip()
+    if not new_uid:
+        return jsonify({'error': '아이디를 입력하세요.'}), 400
+    if new_uid in users:
+        return jsonify({'error': '이미 존재하는 아이디입니다.'}), 400
+    users[new_uid] = {
+        'pw': data.get('password', '1234'),
+        'nickname': data.get('nickname', new_uid),
+        'role': 'user'
+    }
+    _save_users(users)
+    return jsonify({'success': True})
+
+@app.route('/api/users/<target_uid>', methods=['DELETE'])
+def delete_user(target_uid):
+    admin_uid = request.args.get('admin_uid', '')
+    users = _load_users()
+    if users.get(admin_uid, {}).get('role') != 'admin':
+        return jsonify({'error': '권한 없음'}), 403
+    if target_uid == 'admin':
+        return jsonify({'error': 'admin 계정은 삭제할 수 없습니다.'}), 400
+    if target_uid not in users:
+        return jsonify({'error': '사용자 없음'}), 404
+    del users[target_uid]
+    _save_users(users)
+    return jsonify({'success': True})
+
+@app.route('/api/users/<target_uid>/reset', methods=['POST'])
+def reset_password(target_uid):
+    data = request.json or {}
+    admin_uid = data.get('admin_uid', '')
+    users = _load_users()
+    if users.get(admin_uid, {}).get('role') != 'admin':
+        return jsonify({'error': '권한 없음'}), 403
+    if target_uid not in users:
+        return jsonify({'error': '사용자 없음'}), 404
+    users[target_uid]['pw'] = data.get('password', '1234')
+    _save_users(users)
+    return jsonify({'success': True})
+
+@app.route('/api/users/<target_uid>/nickname', methods=['POST'])
+def update_nickname(target_uid):
+    data = request.json or {}
+    admin_uid = data.get('admin_uid', '')
+    users = _load_users()
+    if users.get(admin_uid, {}).get('role') != 'admin':
+        return jsonify({'error': '권한 없음'}), 403
+    if target_uid not in users:
+        return jsonify({'error': '사용자 없음'}), 404
+    users[target_uid]['nickname'] = data.get('nickname', target_uid)
+    _save_users(users)
+    return jsonify({'success': True})
 
 if __name__ == '__main__':
     print("🚀 MPL Server 시작 (Port: 5000)")

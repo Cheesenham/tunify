@@ -111,7 +111,7 @@
     <nav class="topnav">
         <div class="logo">MPL <span>Maker</span></div>
         <span id="conn-badge" class="conn-badge" style="background:rgba(255,255,255,0.05); color:#555; border-color:#333;">Connecting...</span>
-        <a href="/">← Home</a>
+        <a href="/player.html">← Player</a>
     </nav>
 
     <div class="wrap">
@@ -217,7 +217,9 @@
         if (PI_URL && PI_URL.endsWith('/')) PI_URL = PI_URL.slice(0, -1);
         document.getElementById('current-url').innerText = PI_URL || '';
 
-        const UID = localStorage.getItem('MPL_USER') || 'admin';
+        // 로그인 체크
+        const UID = localStorage.getItem('MPL_USER') || '';
+        if (!UID) { location.href = '/player.html'; }
         let selectedMusic = null, selectedLyrics = null, currentPlaylistUrl = '';
         let currentPlatform = 'yt', currentMode = 'music', currentType = 'video', lyricsMode = 'skip';
 
