@@ -442,6 +442,72 @@
         @media (max-width: 640px) {
             .user-badge .uname { display: none; }
         }
+
+        /* ── Cover Modal ── */
+        .cover-modal {
+            display: none; position: fixed; inset: 0; z-index: 450;
+            background: rgba(0,0,0,0.88); align-items: center; justify-content: center;
+            padding: 16px;
+        }
+        .cover-modal.open { display: flex; }
+        .cover-box {
+            background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 14px;
+            width: min(520px, 100%); max-height: 90vh; display: flex; flex-direction: column;
+            overflow: hidden;
+        }
+        .cover-box-hdr {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 18px; border-bottom: 1px solid #222; flex-shrink: 0;
+        }
+        .cover-box-hdr h3 { font-size: 0.92rem; font-weight: 700; }
+        .cover-track-info { padding: 10px 18px 4px; font-size: 0.8rem; color: #555; flex-shrink: 0; }
+        .cover-candidates {
+            display: grid; grid-template-columns: repeat(3, 1fr);
+            gap: 10px; padding: 12px 16px; overflow-y: auto; flex: 1;
+        }
+        .cover-candidate {
+            cursor: pointer; border-radius: 8px; overflow: hidden;
+            border: 2px solid transparent; transition: 0.15s; background: #222;
+        }
+        .cover-candidate:hover { border-color: #555; }
+        .cover-candidate.selected { border-color: var(--sc-orange); box-shadow: 0 0 0 1px var(--sc-orange); }
+        .cover-candidate img { width: 100%; aspect-ratio: 1/1; object-fit: cover; display: block; }
+        .cover-cand-info { padding: 6px 8px 8px; }
+        .cover-cand-title { font-size: 0.72rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .cover-cand-sub { font-size: 0.64rem; color: #555; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .cover-loading { grid-column: 1/-1; padding: 36px; text-align: center; color: #444; font-size: 0.85rem; }
+        .cover-footer {
+            padding: 12px 16px; border-top: 1px solid #222; display: flex;
+            gap: 8px; justify-content: flex-end; flex-shrink: 0;
+        }
+        .cover-apply-btn {
+            padding: 9px 20px; background: var(--sc-orange); color: white; border: none;
+            border-radius: 6px; font-weight: 700; cursor: pointer; font-family: inherit;
+            font-size: 0.85rem; transition: 0.15s;
+        }
+        .cover-apply-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .cover-apply-btn:not(:disabled):hover { background: #e04d00; }
+        .cover-cancel-btn {
+            padding: 9px 16px; background: #2a2a2a; color: #888; border: none;
+            border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 0.85rem;
+        }
+        /* 커버 없는 썸네일 — 클릭 유도 */
+        .track-thumb-wrap.no-cover { cursor: pointer; }
+        .track-thumb-wrap.no-cover::after {
+            content: '🖼'; position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1rem; background: rgba(0,0,0,0); border-radius: 4px;
+            transition: 0.15s; opacity: 0;
+        }
+        .track-thumb-wrap.no-cover:hover::after { background: rgba(0,0,0,0.6); opacity: 1; }
+        /* NP 아트 클릭 커서 */
+        .np-art-wrap.clickable { cursor: pointer; }
+        .np-art-wrap.clickable:hover::before { content: '🖼'; font-size: 2rem; color: rgba(255,255,255,0.6); z-index: 2; }
+
+        @media (max-width: 480px) {
+            .cover-candidates { grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 8px 10px; }
+            .cover-cand-info { padding: 4px 6px 6px; }
+        }
     </style>
 </head>
 <body>
@@ -494,7 +560,7 @@
         </div>
         <div class="np-body">
             <div class="np-left">
-                <div class="np-art-wrap">
+                <div class="np-art-wrap clickable" onclick="currentItem && openCoverModal(currentItem)">
                     <img id="np-art" class="np-art" src="" onerror="this.style.opacity=0">
                 </div>
                 <div class="np-meta">
@@ -582,6 +648,25 @@
     <div class="ctx-menu" id="ctx-menu">
         <div class="ctx-menu-item" onclick="ctxPlayNext()">▶ Play Next에 추가</div>
         <div class="ctx-menu-item" onclick="ctxPlayNow()">▶ 지금 재생</div>
+        <div class="ctx-menu-item" onclick="ctxOpenCover()">🖼 커버 교체</div>
+    </div>
+
+    <!-- Cover Modal -->
+    <div class="cover-modal" id="cover-modal" onclick="closeCoverModal()">
+        <div class="cover-box" onclick="event.stopPropagation()">
+            <div class="cover-box-hdr">
+                <h3>🖼 앨범 커버 교체</h3>
+                <button class="np-down-btn" onclick="closeCoverModal()">✕</button>
+            </div>
+            <div class="cover-track-info" id="cover-track-info"></div>
+            <div class="cover-candidates" id="cover-candidates">
+                <div class="cover-loading">🔍 검색 중...</div>
+            </div>
+            <div class="cover-footer">
+                <button class="cover-cancel-btn" onclick="closeCoverModal()">취소</button>
+                <button class="cover-apply-btn" id="cover-apply-btn" onclick="applyCover()" disabled>적용</button>
+            </div>
+        </div>
     </div>
 
     <!-- Queue Panel -->
@@ -917,8 +1002,8 @@
                          ontouchstart='trackTouchStart(event,${JSON.stringify(f).replace(/'/g,"&#39;")})'
                          ontouchend="trackTouchEnd()" ontouchmove="trackTouchMove()">
                         <div class="track-num">${currentItem?.id === f.id ? '♫' : i + 1}</div>
-                        <div class="track-thumb-wrap">
-                            <img class="track-thumb" src="${f.thumbnail || ''}" onerror="this.style.opacity=0">
+                        <div class="track-thumb-wrap${f.thumbnail ? '' : ' no-cover'}" onclick="${f.thumbnail ? '' : `event.stopPropagation();openCoverModal(trackList[${i}])`}">
+                            <img class="track-thumb" src="${f.thumbnail || ''}" onerror="this.style.opacity=0;this.parentElement.classList.add('no-cover')">
                             <div class="play-overlay">▶</div>
                         </div>
                         <div class="track-info">
@@ -970,8 +1055,8 @@
                          ontouchstart='trackTouchStart(event,${JSON.stringify(f).replace(/'/g,"&#39;")})'
                          ontouchend="trackTouchEnd()" ontouchmove="trackTouchMove()">
                         <div class="track-num">${currentItem?.id === f.id ? '♫' : i + 1}</div>
-                        <div class="track-thumb-wrap">
-                            <img class="track-thumb" src="${f.thumbnail || ''}" onerror="this.style.opacity=0">
+                        <div class="track-thumb-wrap${f.thumbnail ? '' : ' no-cover'}" onclick="${f.thumbnail ? '' : `event.stopPropagation();openCoverModal(trackList[${i}])`}">
+                            <img class="track-thumb" src="${f.thumbnail || ''}" onerror="this.style.opacity=0;this.parentElement.classList.add('no-cover')">
                             <div class="play-overlay">▶</div>
                         </div>
                         <div class="track-info">
@@ -1161,6 +1246,82 @@
             menu.style.top = Math.min(y, window.innerHeight - 90) + 'px';
         }
         function hideCtxMenu() { document.getElementById('ctx-menu').style.display = 'none'; ctxTrack = null; }
+        // --- Cover ---
+        let coverTargetItem = null, coverSelectedUrl = null;
+
+        async function openCoverModal(item) {
+            coverTargetItem = item;
+            coverSelectedUrl = null;
+            const info = document.getElementById('cover-track-info');
+            const cands = document.getElementById('cover-candidates');
+            const btn   = document.getElementById('cover-apply-btn');
+            info.innerText = item.filename + (item.artist ? ' · ' + item.artist : '');
+            cands.innerHTML = '<div class="cover-loading">🔍 커버 검색 중...</div>';
+            btn.disabled = true; btn.innerText = '적용';
+            document.getElementById('cover-modal').classList.add('open');
+            try {
+                const r = await apiFetch(`${PI_URL}/api/cover/search`, {
+                    method: 'POST',
+                    body: JSON.stringify({title: item.filename, artist: item.artist || '', uid: UID})
+                });
+                const d = await r.json();
+                if (!d.success || !d.candidates?.length) {
+                    cands.innerHTML = '<div class="cover-loading">커버를 찾지 못했습니다.<br><small style="color:#333;">다른 곡을 시도해 보세요.</small></div>';
+                    return;
+                }
+                cands.innerHTML = d.candidates.map((c, i) => `
+                    <div class="cover-candidate" onclick="selectCover(this,'${c.url.replace(/'/g,"\\'")}')">
+                        <img src="${c.thumb}" onerror="this.src=''" loading="lazy" alt="">
+                        <div class="cover-cand-info">
+                            <div class="cover-cand-title">${c.title || '—'}</div>
+                            <div class="cover-cand-sub">${c.artist || ''}${c.album ? ' · ' + c.album : ''}</div>
+                        </div>
+                    </div>`).join('');
+            } catch(e) {
+                cands.innerHTML = `<div class="cover-loading">오류: ${e.message}</div>`;
+            }
+        }
+        function selectCover(el, url) {
+            document.querySelectorAll('.cover-candidate').forEach(e => e.classList.remove('selected'));
+            el.classList.add('selected');
+            coverSelectedUrl = url;
+            document.getElementById('cover-apply-btn').disabled = false;
+        }
+        function closeCoverModal() {
+            document.getElementById('cover-modal').classList.remove('open');
+            coverTargetItem = null; coverSelectedUrl = null;
+        }
+        async function applyCover() {
+            if (!coverTargetItem || !coverSelectedUrl) return;
+            const btn = document.getElementById('cover-apply-btn');
+            btn.disabled = true; btn.innerText = '적용 중...';
+            try {
+                const r = await apiFetch(`${PI_URL}/api/cover/apply`, {
+                    method: 'POST',
+                    body: JSON.stringify({file_id: coverTargetItem.id, url: coverSelectedUrl, uid: UID})
+                });
+                const d = await r.json();
+                if (!d.success) { alert(d.msg || '적용 실패'); }
+                else {
+                    // 로컬 캐시 업데이트
+                    const newThumb = PI_URL + d.thumbnail;
+                    [allFiles, trackList, playContextList].forEach(arr => {
+                        const f = arr.find(x => x.id === coverTargetItem.id);
+                        if (f) { f.thumbnail = newThumb; if (arr === allFiles) f.thumbnail = newThumb; }
+                    });
+                    if (currentItem?.id === coverTargetItem.id) {
+                        document.getElementById('np-art').src = newThumb;
+                        document.getElementById('now-thumb').src = newThumb;
+                        currentItem.thumbnail = newThumb;
+                    }
+                    closeCoverModal();
+                    renderView();
+                }
+            } catch(e) { alert(e.message); }
+            btn.disabled = false; btn.innerText = '적용';
+        }
+        function ctxOpenCover() { if (ctxTrack) { openCoverModal(ctxTrack); hideCtxMenu(); } }
+
         function ctxPlayNext() {
             if (!ctxTrack) return;
             playQueue.push(ctxTrack);

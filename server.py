@@ -518,6 +518,76 @@ def add_to_playlist():
         json.dump(playlists, f, ensure_ascii=False)
     return jsonify({"success": True})
 
+# ─── 앨범 커버 ───────────────────────────────────────────────
+@app.route('/api/cover/search', methods=['POST'])
+def cover_search():
+    data = request.json or {}
+    title  = data.get('title', '').strip()
+    artist = data.get('artist', '').strip()
+    query  = f"{artist} {title}".strip() if artist else title
+    if not query:
+        return jsonify({'success': False, 'msg': '검색어 없음'})
+    try:
+        url = (f"https://itunes.apple.com/search?term={urllib.parse.quote(query)}"
+               f"&media=music&entity=song&limit=10")
+        req = urllib.request.Request(url, headers={'User-Agent': 'Tunify/1.0'})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            results = json.loads(r.read()).get('results', [])
+        candidates, seen = [], set()
+        for item in results:
+            art = item.get('artworkUrl100', '')
+            if not art or art in seen:
+                continue
+            seen.add(art)
+            candidates.append({
+                'url':    art.replace('100x100bb', '600x600bb'),
+                'thumb':  art.replace('100x100bb', '300x300bb'),
+                'title':  item.get('trackName', ''),
+                'artist': item.get('artistName', ''),
+                'album':  item.get('collectionName', ''),
+            })
+            if len(candidates) >= 3:
+                break
+        return jsonify({'success': True, 'candidates': candidates})
+    except Exception as e:
+        return jsonify({'success': False, 'msg': str(e)})
+
+@app.route('/api/cover/apply', methods=['POST'])
+def cover_apply():
+    data = request.json or {}
+    file_id     = str(data.get('file_id', ''))
+    cover_url   = data.get('url', '').strip()
+    requester   = data.get('uid', '').strip()
+    if not file_id or not cover_url:
+        return jsonify({'success': False, 'msg': '파라미터 부족'})
+    db_path = os.path.join(STORAGE_DIR, 'db.json')
+    with _db_lock:
+        if not os.path.exists(db_path):
+            return jsonify({'success': False, 'msg': 'DB 없음'})
+        with open(db_path, 'r', encoding='utf-8') as f:
+            db = json.load(f)
+        item = next((x for x in db if str(x['id']) == file_id), None)
+        if not item:
+            return jsonify({'success': False, 'msg': '항목 없음'})
+        if requester and item.get('uid') != requester:
+            return jsonify({'success': False, 'msg': '권한 없음'}), 403
+        item_uid  = item['uid']
+        user_dir  = os.path.join(STORAGE_DIR, item_uid)
+        os.makedirs(user_dir, exist_ok=True)
+        cover_fn  = f"cover_{file_id}.jpg"
+        cover_path = os.path.join(user_dir, cover_fn)
+        try:
+            req = urllib.request.Request(cover_url, headers={'User-Agent': 'Tunify/1.0'})
+            with urllib.request.urlopen(req, timeout=15) as r:
+                with open(cover_path, 'wb') as f2:
+                    f2.write(r.read())
+        except Exception as e:
+            return jsonify({'success': False, 'msg': f'이미지 다운로드 실패: {e}'})
+        item['thumbnail'] = f"/api/media/{item_uid}/{cover_fn}"
+        with open(db_path, 'w', encoding='utf-8') as f:
+            json.dump(db, f, ensure_ascii=False, indent=2)
+    return jsonify({'success': True, 'thumbnail': item['thumbnail']})
+
 # ─── 계정 관리 ───────────────────────────────────────────────
 _users_lock = threading.Lock()
 
