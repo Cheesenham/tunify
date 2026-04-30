@@ -592,6 +592,7 @@
                 <div class="queue-header-actions">
                     <button class="queue-btn" id="queue-shuffle-btn" onclick="shuffleQueue()">🔀 섞기</button>
                     <button class="queue-btn" onclick="clearQueue()">전체 삭제</button>
+                    <button class="queue-btn" onclick="clearAutoBlacklist()" title="제외된 곡 복원" style="font-size:0.7rem;">↺ 복원</button>
                     <button class="queue-btn" onclick="closeQueue()">✕</button>
                 </div>
             </div>
@@ -723,6 +724,7 @@
         let prefetchCache = {};      // id → blobUrl 미리 불러온 곡
         let prefetchTriggered = false;
         let playGeneration = 0;
+        let autoBlacklist = new Set(); // 자동 재생에서 제외할 트랙 ID
 
         // --- Auth ---
         function showLoginScreen() {
@@ -748,7 +750,11 @@
                 currentUser = {uid: d.uid, nickname: d.nickname, role: d.role};
                 localStorage.setItem('MPL_NICKNAME', d.nickname);
                 localStorage.setItem('MPL_ROLE', d.role);
-            } catch(e) { /* 오프라인이어도 저장된 정보로 시작 */ }
+            } catch(e) {
+                // 오프라인이어도 저장된 정보로 시작 (role 복원)
+                const storedRole = localStorage.getItem('MPL_ROLE');
+                if (storedRole) currentUser.role = storedRole;
+            }
             initApp();
         }
         async function doLogin() {
@@ -1202,16 +1208,17 @@
             if (!list.length) return result;
             const idx = list.findIndex(f => f.id === currentItem?.id);
             const manualIds = new Set(playQueue.map(f => f.id));
+            const excluded = id => manualIds.has(id) || autoBlacklist.has(id);
             if (shuffleMode) {
-                const pool = list.filter(f => f.id !== currentItem?.id && !manualIds.has(f.id));
+                const pool = list.filter(f => f.id !== currentItem?.id && !excluded(f.id));
                 const shuffled = [...pool].sort(() => Math.random() - 0.5);
                 result.push(...shuffled.slice(0, count - result.length));
             } else {
                 for (let i = idx + 1; result.length < count && i < list.length; i++) {
-                    if (!manualIds.has(list[i].id)) result.push(list[i]);
+                    if (!excluded(list[i].id)) result.push(list[i]);
                 }
                 for (let i = 0; result.length < count && i <= idx; i++) {
-                    if (!manualIds.has(list[i].id)) result.push(list[i]);
+                    if (!excluded(list[i].id)) result.push(list[i]);
                 }
             }
             return result;
@@ -1235,7 +1242,9 @@
                     <div class="queue-item-title">${t.filename}</div>
                     <div class="queue-item-artist">${t.artist||'—'}</div>
                 </div>
-                ${isManual ? `<button class="queue-item-remove" onclick="removeFromQueue(${i})">✕</button>` : ''}
+                ${isManual
+                    ? `<button class="queue-item-remove" onclick="removeFromQueue(${i})">✕</button>`
+                    : `<button class="queue-item-remove" onclick="skipAutoTrack(${t.id})" title="목록에서 제외">✕</button>`}
             </div>`;
         }
 
@@ -1277,7 +1286,10 @@
                 </div>
                 ${isManual
                     ? `<button class="queue-item-remove" onclick="removeFromQueue(${i})">✕</button>`
-                    : `<button class="queue-item-remove" onclick="addAutoToQueue(${i})" title="Play Next에 고정" style="color:#666;font-size:0.75rem;">＋</button>`}
+                    : `<div style="display:flex;gap:2px;">
+                        <button class="queue-item-remove" onclick="addAutoToQueue(${i})" title="Play Next에 고정" style="color:#555;font-size:0.75rem;">＋</button>
+                        <button class="queue-item-remove" onclick="skipAutoTrack(${t.id})" title="목록에서 제외">✕</button>
+                       </div>`}
             </div>`;
         }
 
@@ -1328,6 +1340,16 @@
                 [playQueue[i], playQueue[j]] = [playQueue[j], playQueue[i]];
             }
             renderQueue();
+        }
+        function skipAutoTrack(id) {
+            autoBlacklist.add(id);
+            renderQueue();
+            renderQueueInline();
+        }
+        function clearAutoBlacklist() {
+            autoBlacklist.clear();
+            renderQueue();
+            renderQueueInline();
         }
 
         // --- Drag to reorder queue ---
