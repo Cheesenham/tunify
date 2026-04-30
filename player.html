@@ -422,6 +422,7 @@
         .user-act-btn:hover { color: white; border-color: #555; }
         .user-act-btn.del { color: #ef4444; border-color: #4a1a1a; }
         .user-act-btn.del:hover { background: rgba(239,68,68,0.1); border-color: #ef4444; }
+        .user-act-btn.active { color: #4ade80; border-color: #14532d; background: rgba(74,222,128,0.08); }
         .users-add-form {
             padding: 12px 14px; border-top: 1px solid #222; flex-shrink: 0;
             display: flex; flex-direction: column; gap: 8px;
@@ -534,6 +535,9 @@
             </div>
             <div class="nav-item" onclick="window.location.href='/maker.html'">
                 <span>🎛</span> Maker
+            </div>
+            <div class="nav-item webhard-only" id="nav-webhard" onclick="window.location.href='/webhard.html'" style="display:none;">
+                <span>💾</span> WebHard
             </div>
             <div class="nav-item admin-only" id="nav-users" onclick="openUsersModal()" style="display:none;">
                 <span>👥</span> 계정 관리
@@ -790,7 +794,8 @@
         let currentUser = {
             uid: UID,
             nickname: localStorage.getItem('MPL_NICKNAME') || UID,
-            role: localStorage.getItem('MPL_ROLE') || 'user'
+            role: localStorage.getItem('MPL_ROLE') || 'user',
+            webhard: localStorage.getItem('MPL_WEBHARD') === '1'
         };
         const NGROK_HEADERS = { 'ngrok-skip-browser-warning': 'true', 'Content-Type': 'application/json' };
         function apiFetch(url, opts = {}) {
@@ -832,13 +837,14 @@
                 const r = await apiFetch(`${PI_URL}/api/me?uid=${UID}`);
                 const d = await r.json();
                 if (!d.success) { showLoginScreen(); return; }
-                currentUser = {uid: d.uid, nickname: d.nickname, role: d.role};
+                currentUser = {uid: d.uid, nickname: d.nickname, role: d.role, webhard: !!d.webhard};
                 localStorage.setItem('MPL_NICKNAME', d.nickname);
                 localStorage.setItem('MPL_ROLE', d.role);
+                localStorage.setItem('MPL_WEBHARD', d.webhard ? '1' : '0');
             } catch(e) {
-                // 오프라인이어도 저장된 정보로 시작 (role 복원)
                 const storedRole = localStorage.getItem('MPL_ROLE');
                 if (storedRole) currentUser.role = storedRole;
+                currentUser.webhard = localStorage.getItem('MPL_WEBHARD') === '1';
             }
             initApp();
         }
@@ -857,10 +863,11 @@
                 const d = await r.json();
                 if (!r.ok || !d.success) { errEl.innerText = d.error || '로그인 실패'; return; }
                 UID = d.uid;
-                currentUser = {uid: d.uid, nickname: d.nickname, role: d.role};
+                currentUser = {uid: d.uid, nickname: d.nickname, role: d.role, webhard: !!d.webhard};
                 localStorage.setItem('MPL_USER', d.uid);
                 localStorage.setItem('MPL_NICKNAME', d.nickname);
                 localStorage.setItem('MPL_ROLE', d.role);
+                localStorage.setItem('MPL_WEBHARD', d.webhard ? '1' : '0');
                 hideLoginScreen();
                 initApp();
             } catch(e) {
@@ -868,7 +875,7 @@
             }
         }
         function logout() {
-            ['MPL_USER','MPL_NICKNAME','MPL_ROLE'].forEach(k => localStorage.removeItem(k));
+            ['MPL_USER','MPL_NICKNAME','MPL_ROLE','MPL_WEBHARD'].forEach(k => localStorage.removeItem(k));
             UID = ''; currentUser = {uid:'',nickname:'',role:'user'};
             audio.pause(); audio.src = ''; currentItem = null;
             document.getElementById('now-title').innerText = 'No track selected';
@@ -878,9 +885,12 @@
         function initApp() {
             const el = document.getElementById('user-name-display');
             if (el) el.innerText = currentUser.nickname || currentUser.uid;
-            // admin 전용 UI 표시
             document.querySelectorAll('.admin-only').forEach(e => {
                 e.style.display = currentUser.role === 'admin' ? '' : 'none';
+            });
+            const hasWebhard = currentUser.webhard || currentUser.role === 'admin';
+            document.querySelectorAll('.webhard-only').forEach(e => {
+                e.style.display = hasWebhard ? '' : 'none';
             });
             renderView();
         }
@@ -908,6 +918,7 @@
                         </div>
                         ${u.role === 'admin' ? '<span class="user-row-role">admin</span>' : ''}
                         <div class="user-row-actions">
+                            ${u.role !== 'admin' ? `<button class="user-act-btn${u.webhard ? ' active' : ''}" onclick="toggleWebhard('${u.uid}',${!u.webhard})" title="웹하드 접근 권한">💾${u.webhard ? ' ON' : ' OFF'}</button>` : ''}
                             <button class="user-act-btn" onclick="promptResetPw('${u.uid}')">비번초기화</button>
                             ${u.uid !== 'admin' ? `<button class="user-act-btn del" onclick="deleteUser('${u.uid}')">삭제</button>` : ''}
                         </div>
@@ -951,6 +962,18 @@
                 });
                 const d = await r.json();
                 alert(d.success ? '비밀번호가 초기화되었습니다.' : (d.error || '실패'));
+            } catch(e) { alert(e.message); }
+        }
+
+        async function toggleWebhard(targetUid, enabled) {
+            try {
+                const r = await apiFetch(`${PI_URL}/api/users/${targetUid}/webhard`, {
+                    method: 'POST',
+                    body: JSON.stringify({admin_uid: UID, enabled})
+                });
+                const d = await r.json();
+                if (!d.success) { alert(d.msg || '실패'); return; }
+                loadUsers();
             } catch(e) { alert(e.message); }
         }
 

@@ -5,8 +5,9 @@ import threading
 import subprocess
 import urllib.request
 import urllib.parse
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 CORS(app)
@@ -19,6 +20,8 @@ os.makedirs(STORAGE_DIR, exist_ok=True)
 import shutil
 YTDLP = shutil.which('yt-dlp') or '/home/lee/.local/bin/yt-dlp'
 USERS_FILE = os.path.join(BASE_DIR, 'db', 'users.json')
+WEBHARD_DIR = os.environ.get('WEBHARD_DIR', '/mnt/usb')
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024 * 1024  # 10GB
 
 # 작업 큐 (job_id → {title, progress, status, thumbnail})
 jobs = {}
@@ -655,7 +658,8 @@ def login():
         return jsonify({'success': False, 'error': '아이디 또는 비밀번호가 틀렸습니다.'}), 401
     return jsonify({'success': True, 'uid': uid,
                     'nickname': u.get('nickname', uid),
-                    'role': u.get('role', 'user')})
+                    'role': u.get('role', 'user'),
+                    'webhard': u.get('role') == 'admin' or u.get('webhard', False)})
 
 @app.route('/api/me')
 def me():
@@ -666,7 +670,8 @@ def me():
         return jsonify({'success': False}), 401
     return jsonify({'success': True, 'uid': uid,
                     'nickname': u.get('nickname', uid),
-                    'role': u.get('role', 'user')})
+                    'role': u.get('role', 'user'),
+                    'webhard': u.get('role') == 'admin' or u.get('webhard', False)})
 
 @app.route('/api/users', methods=['GET'])
 def list_users():
@@ -675,7 +680,8 @@ def list_users():
     if users.get(uid, {}).get('role') != 'admin':
         return jsonify({'error': '권한 없음'}), 403
     return jsonify({'success': True, 'users': [
-        {'uid': k, 'nickname': v.get('nickname', k), 'role': v.get('role', 'user')}
+        {'uid': k, 'nickname': v.get('nickname', k), 'role': v.get('role', 'user'),
+         'webhard': v.get('role') == 'admin' or v.get('webhard', False)}
         for k, v in users.items()
     ]})
 
@@ -736,6 +742,154 @@ def update_nickname(target_uid):
     if target_uid not in users:
         return jsonify({'error': '사용자 없음'}), 404
     users[target_uid]['nickname'] = data.get('nickname', target_uid)
+    _save_users(users)
+    return jsonify({'success': True})
+
+# ─── 웹하드 ───────────────────────────────────────────────────
+
+def _webhard_perm(uid):
+    users = _load_users()
+    u = users.get(uid, {})
+    return u.get('role') == 'admin' or u.get('webhard', False)
+
+def _safe_webhard_path(rel):
+    if not rel:
+        rel = '/'
+    clean = os.path.normpath('/' + rel.lstrip('/'))
+    base  = os.path.normpath(WEBHARD_DIR)
+    target = os.path.normpath(base + clean)
+    if target != base and not target.startswith(base + os.sep):
+        return None
+    return target
+
+@app.route('/api/webhard/ls')
+def webhard_ls():
+    uid  = request.args.get('uid', '')
+    path = request.args.get('path', '/')
+    if not _webhard_perm(uid):
+        return jsonify({'success': False, 'msg': '권한 없음'}), 403
+    if not os.path.isdir(WEBHARD_DIR):
+        return jsonify({'success': False, 'msg': 'USB가 마운트되지 않았습니다'}), 503
+    target = _safe_webhard_path(path)
+    if not target or not os.path.isdir(target):
+        return jsonify({'success': False, 'msg': '디렉토리 없음'}), 404
+    items = []
+    try:
+        names = sorted(os.listdir(target),
+                       key=lambda x: (os.path.isfile(os.path.join(target, x)), x.lower()))
+        for name in names:
+            full = os.path.join(target, name)
+            try:
+                st = os.stat(full)
+                items.append({'name': name,
+                               'type': 'dir' if os.path.isdir(full) else 'file',
+                               'size': st.st_size if os.path.isfile(full) else 0,
+                               'mtime': int(st.st_mtime)})
+            except OSError:
+                pass
+    except PermissionError:
+        return jsonify({'success': False, 'msg': '접근 권한 없음'}), 403
+    try:
+        du = shutil.disk_usage(WEBHARD_DIR)
+        disk = {'total': du.total, 'used': du.used, 'free': du.free}
+    except Exception:
+        disk = {'total': 0, 'used': 0, 'free': 0}
+    return jsonify({'success': True, 'path': path, 'items': items, 'disk': disk})
+
+@app.route('/api/webhard/file', methods=['GET'])
+def webhard_serve():
+    uid  = request.args.get('uid', '')
+    path = request.args.get('path', '')
+    if not _webhard_perm(uid):
+        return jsonify({'success': False, 'msg': '권한 없음'}), 403
+    target = _safe_webhard_path(path)
+    if not target or not os.path.isfile(target):
+        return jsonify({'success': False, 'msg': '파일 없음'}), 404
+    dl = request.args.get('dl', '0') == '1'
+    return send_file(target, as_attachment=dl)
+
+@app.route('/api/webhard/upload', methods=['POST'])
+def webhard_upload():
+    uid  = request.form.get('uid', '')
+    path = request.form.get('path', '/')
+    if not _webhard_perm(uid):
+        return jsonify({'success': False, 'msg': '권한 없음'}), 403
+    target_dir = _safe_webhard_path(path)
+    if not target_dir or not os.path.isdir(target_dir):
+        return jsonify({'success': False, 'msg': '디렉토리 없음'}), 404
+    uploaded = []
+    for f in request.files.getlist('files'):
+        fname = secure_filename(f.filename)
+        if fname:
+            f.save(os.path.join(target_dir, fname))
+            uploaded.append(fname)
+    return jsonify({'success': True, 'uploaded': uploaded})
+
+@app.route('/api/webhard/file', methods=['DELETE'])
+def webhard_delete():
+    uid  = request.args.get('uid', '')
+    path = request.args.get('path', '')
+    if not _webhard_perm(uid):
+        return jsonify({'success': False, 'msg': '권한 없음'}), 403
+    target = _safe_webhard_path(path)
+    if not target:
+        return jsonify({'success': False, 'msg': '잘못된 경로'}), 400
+    if os.path.normpath(target) == os.path.normpath(WEBHARD_DIR):
+        return jsonify({'success': False, 'msg': '루트 삭제 불가'}), 400
+    if os.path.isfile(target):
+        os.remove(target)
+    elif os.path.isdir(target):
+        shutil.rmtree(target)
+    else:
+        return jsonify({'success': False, 'msg': '없음'}), 404
+    return jsonify({'success': True})
+
+@app.route('/api/webhard/mkdir', methods=['POST'])
+def webhard_mkdir():
+    data = request.json or {}
+    uid  = data.get('uid', '')
+    path = data.get('path', '/')
+    name = data.get('name', '').strip()
+    if not _webhard_perm(uid):
+        return jsonify({'success': False, 'msg': '권한 없음'}), 403
+    if not name or '/' in name or name in ('.', '..'):
+        return jsonify({'success': False, 'msg': '잘못된 폴더명'}), 400
+    target_dir = _safe_webhard_path(path)
+    if not target_dir:
+        return jsonify({'success': False, 'msg': '잘못된 경로'}), 400
+    new_dir = os.path.join(target_dir, name)
+    if not os.path.normpath(new_dir).startswith(os.path.normpath(WEBHARD_DIR)):
+        return jsonify({'success': False, 'msg': '잘못된 경로'}), 400
+    os.makedirs(new_dir, exist_ok=True)
+    return jsonify({'success': True})
+
+@app.route('/api/webhard/rename', methods=['POST'])
+def webhard_rename():
+    data     = request.json or {}
+    uid      = data.get('uid', '')
+    path     = data.get('path', '')
+    new_name = data.get('new_name', '').strip()
+    if not _webhard_perm(uid):
+        return jsonify({'success': False, 'msg': '권한 없음'}), 403
+    if not new_name or '/' in new_name or new_name in ('.', '..'):
+        return jsonify({'success': False, 'msg': '잘못된 이름'}), 400
+    target = _safe_webhard_path(path)
+    if not target or not os.path.exists(target):
+        return jsonify({'success': False, 'msg': '없음'}), 404
+    new_path = os.path.join(os.path.dirname(target), new_name)
+    os.rename(target, new_path)
+    return jsonify({'success': True})
+
+@app.route('/api/users/<target_uid>/webhard', methods=['POST'])
+def toggle_webhard(target_uid):
+    data      = request.json or {}
+    admin_uid = data.get('admin_uid', '')
+    users     = _load_users()
+    if users.get(admin_uid, {}).get('role') != 'admin':
+        return jsonify({'success': False, 'msg': '관리자만 가능'}), 403
+    if target_uid not in users:
+        return jsonify({'success': False, 'msg': '유저 없음'}), 404
+    users[target_uid]['webhard'] = bool(data.get('enabled', False))
     _save_users(users)
     return jsonify({'success': True})
 

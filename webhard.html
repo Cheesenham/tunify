@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tunify · WebHard</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#111;--surface:#1a1a1a;--surface2:#222;--border:#2a2a2a;--text:#e0e0e0;--muted:#666;--orange:#f97316;--red:#f87171;--blue:#60a5fa;--green:#4ade80}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+
+/* ── LOGIN ── */
+.login-wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:999}
+.login-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px 28px;width:min(360px,90vw)}
+.login-logo{font-size:1.5rem;font-weight:800;color:var(--orange);margin-bottom:6px}
+.login-sub{color:var(--muted);font-size:0.82rem;margin-bottom:24px}
+.login-input{width:100%;background:#2a2a2a;border:1px solid #333;border-radius:6px;padding:10px 12px;color:var(--text);font-size:0.9rem;margin-bottom:10px;font-family:inherit}
+.login-input:focus{outline:none;border-color:var(--orange)}
+.login-btn{width:100%;padding:11px;background:var(--orange);color:#fff;border:none;border-radius:6px;font-weight:700;font-size:0.9rem;cursor:pointer;margin-top:4px;font-family:inherit}
+.login-err{color:var(--red);font-size:0.8rem;margin-top:8px;min-height:1.2em}
+
+/* ── HEADER ── */
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 16px;height:52px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+.header-brand{font-size:1rem;font-weight:700;color:var(--orange);white-space:nowrap}
+.header-back{color:var(--muted);text-decoration:none;font-size:0.82rem;padding:4px 8px;border-radius:4px;transition:0.15s;white-space:nowrap}
+.header-back:hover{color:var(--text);background:var(--surface2)}
+.header-spacer{flex:1}
+.header-user{color:var(--muted);font-size:0.8rem;white-space:nowrap}
+
+/* ── TOOLBAR ── */
+.toolbar{background:var(--surface2);border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap}
+.breadcrumb{display:flex;align-items:center;gap:4px;flex:1;min-width:0;flex-wrap:wrap}
+.bc-part{color:var(--muted);font-size:0.82rem;cursor:pointer;padding:2px 4px;border-radius:3px;white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis}
+.bc-part:hover{color:var(--text);background:var(--border)}
+.bc-part.current{color:var(--text);cursor:default}
+.bc-sep{color:#333;font-size:0.75rem}
+.tb-btn{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:6px 12px;border-radius:6px;font-size:0.8rem;cursor:pointer;font-family:inherit;white-space:nowrap;transition:0.15s;display:flex;align-items:center;gap:5px}
+.tb-btn:hover{border-color:var(--orange);color:var(--orange)}
+.tb-btn.primary{background:var(--orange);border-color:var(--orange);color:#fff}
+.tb-btn.primary:hover{background:#e04d00;border-color:#e04d00;color:#fff}
+.disk-bar-wrap{display:flex;align-items:center;gap:8px;font-size:0.75rem;color:var(--muted);white-space:nowrap}
+.disk-bar{width:80px;height:5px;background:#333;border-radius:3px;overflow:hidden}
+.disk-bar-fill{height:100%;background:var(--green);border-radius:3px;transition:width 0.3s}
+.disk-bar-fill.warn{background:#facc15}
+.disk-bar-fill.danger{background:var(--red)}
+
+/* ── FILE LIST ── */
+.file-area{flex:1;overflow-y:auto;padding:8px 0}
+.file-item{display:flex;align-items:center;gap:10px;padding:8px 16px;cursor:pointer;transition:0.12s;border-bottom:1px solid transparent;user-select:none}
+.file-item:hover{background:var(--surface2)}
+.file-item:active{background:var(--surface)}
+.file-icon{font-size:1.3rem;flex-shrink:0;width:28px;text-align:center}
+.file-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.88rem}
+.file-meta{display:flex;align-items:center;gap:14px;flex-shrink:0}
+.file-size{color:var(--muted);font-size:0.75rem;width:64px;text-align:right}
+.file-date{color:var(--muted);font-size:0.75rem;width:80px;text-align:right}
+.file-actions{display:flex;gap:4px;opacity:0;transition:0.12s}
+.file-item:hover .file-actions{opacity:1}
+.fa-btn{background:none;border:none;color:var(--muted);padding:3px 6px;border-radius:4px;cursor:pointer;font-size:0.85rem;transition:0.12s;font-family:inherit}
+.fa-btn:hover{background:var(--border);color:var(--text)}
+.fa-btn.del:hover{color:var(--red)}
+.file-empty{text-align:center;padding:48px 20px;color:var(--muted)}
+.file-empty .big{font-size:2.5rem;margin-bottom:10px}
+
+/* ── UPLOAD DROP ZONE ── */
+.drop-overlay{position:fixed;inset:0;background:rgba(249,115,22,0.12);border:3px dashed var(--orange);z-index:50;display:none;align-items:center;justify-content:center;pointer-events:none}
+.drop-overlay.active{display:flex}
+.drop-msg{font-size:1.2rem;font-weight:700;color:var(--orange)}
+
+/* ── UPLOAD PROGRESS ── */
+.upload-toast{position:fixed;bottom:20px;right:20px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px;z-index:200;min-width:240px;display:none;box-shadow:0 4px 20px rgba(0,0,0,0.5)}
+.upload-toast.show{display:block}
+.upload-title{font-size:0.82rem;font-weight:600;margin-bottom:8px;color:var(--text)}
+.upload-prog-wrap{background:#333;border-radius:4px;height:6px;overflow:hidden}
+.upload-prog{height:100%;background:var(--orange);border-radius:4px;transition:width 0.2s}
+.upload-info{font-size:0.75rem;color:var(--muted);margin-top:5px}
+
+/* ── MODALS ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:100;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal-overlay{display:none}
+.modal-overlay.open{display:flex}
+.modal-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:min(400px,90vw)}
+.modal-title{font-size:0.95rem;font-weight:700;margin-bottom:16px}
+.modal-input{width:100%;background:#2a2a2a;border:1px solid #333;border-radius:6px;padding:9px 12px;color:var(--text);font-size:0.88rem;font-family:inherit;margin-bottom:12px}
+.modal-input:focus{outline:none;border-color:var(--orange)}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end}
+.modal-btn{padding:8px 16px;border-radius:6px;font-size:0.85rem;cursor:pointer;font-family:inherit;font-weight:600;border:none}
+.modal-btn.ok{background:var(--orange);color:#fff}
+.modal-btn.ok:hover{background:#e04d00}
+.modal-btn.cancel{background:#2a2a2a;color:var(--muted)}
+.modal-btn.cancel:hover{color:var(--text)}
+
+/* ── PREVIEW MODAL ── */
+.preview-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:200;display:none;flex-direction:column}
+.preview-overlay.open{display:flex}
+.preview-header{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+.preview-name{flex:1;font-size:0.9rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.preview-close{background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:2px 6px;border-radius:4px;line-height:1}
+.preview-close:hover{color:var(--text);background:var(--border)}
+.preview-dl-btn{padding:6px 14px;background:var(--orange);color:#fff;border:none;border-radius:6px;font-size:0.8rem;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap}
+.preview-body{flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;padding:12px}
+.preview-img{max-width:100%;max-height:100%;border-radius:6px;object-fit:contain}
+.preview-frame{width:100%;height:100%;border:none;border-radius:6px;background:#fff}
+.preview-text{background:#111;color:#d4d4d4;padding:16px;border-radius:6px;font-family:'Courier New',monospace;font-size:0.8rem;white-space:pre-wrap;word-break:break-all;width:100%;max-height:100%;overflow-y:auto;text-align:left}
+.preview-table-wrap{width:100%;max-height:100%;overflow:auto;background:#fff;border-radius:6px}
+.preview-table-wrap table{border-collapse:collapse;font-size:0.8rem;color:#111}
+.preview-table-wrap td,.preview-table-wrap th{border:1px solid #ddd;padding:5px 10px;white-space:nowrap}
+.preview-table-wrap th{background:#f0f0f0;font-weight:700}
+.preview-media{max-width:90%;max-height:80%;border-radius:8px}
+.preview-unsupported{text-align:center;color:var(--muted);padding:40px}
+.preview-unsupported .big{font-size:3rem;margin-bottom:12px}
+
+@media(max-width:600px){
+  .file-date,.file-size{display:none}
+  .tb-btn span.label{display:none}
+  .disk-bar-wrap .text{display:none}
+  .header-user{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-wrap" id="login-wrap">
+  <div class="login-box">
+    <div class="login-logo">💾 Tunify</div>
+    <div class="login-sub">WebHard에 로그인하세요</div>
+    <input class="login-input" id="lpi-url"   type="url"      placeholder="Pi URL (https://xxx.ngrok-free.app)">
+    <input class="login-input" id="lpi-uid"   type="text"     placeholder="아이디" autocomplete="username">
+    <input class="login-input" id="lpi-pw"    type="password" placeholder="비밀번호" autocomplete="current-password">
+    <button class="login-btn" onclick="doLogin()">로그인</button>
+    <div class="login-err" id="login-err"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none;flex-direction:column;height:100dvh;overflow:hidden;flex:1">
+
+  <div class="header">
+    <a href="/player.html" class="header-back">← Player</a>
+    <div class="header-brand">💾 WebHard</div>
+    <div class="header-spacer"></div>
+    <div class="header-user" id="hdr-user"></div>
+  </div>
+
+  <div class="toolbar">
+    <div class="breadcrumb" id="breadcrumb"></div>
+    <div class="disk-bar-wrap" id="disk-info">
+      <div class="disk-bar"><div class="disk-bar-fill" id="disk-fill"></div></div>
+      <span class="text" id="disk-text"></span>
+    </div>
+    <button class="tb-btn primary" onclick="triggerUpload()">📤 <span class="label">업로드</span></button>
+    <button class="tb-btn" onclick="openMkdir()">📁+ <span class="label">새 폴더</span></button>
+  </div>
+
+  <div class="file-area" id="file-area"></div>
+</div>
+
+<!-- Hidden file input -->
+<input type="file" id="file-input" multiple style="display:none" onchange="uploadSelected()">
+
+<!-- Drop overlay -->
+<div class="drop-overlay" id="drop-overlay">
+  <div class="drop-msg">📤 여기에 놓으면 업로드됩니다</div>
+</div>
+
+<!-- Upload toast -->
+<div class="upload-toast" id="upload-toast">
+  <div class="upload-title" id="upload-title">업로드 중...</div>
+  <div class="upload-prog-wrap"><div class="upload-prog" id="upload-prog" style="width:0%"></div></div>
+  <div class="upload-info" id="upload-info"></div>
+</div>
+
+<!-- Mkdir modal -->
+<div class="modal-overlay" id="mkdir-modal">
+  <div class="modal-box">
+    <div class="modal-title">📁 새 폴더</div>
+    <input class="modal-input" id="mkdir-name" placeholder="폴더 이름" onkeydown="if(event.key==='Enter')confirmMkdir()">
+    <div class="modal-actions">
+      <button class="modal-btn cancel" onclick="closeMkdir()">취소</button>
+      <button class="modal-btn ok" onclick="confirmMkdir()">만들기</button>
+    </div>
+  </div>
+</div>
+
+<!-- Rename modal -->
+<div class="modal-overlay" id="rename-modal">
+  <div class="modal-box">
+    <div class="modal-title">✏️ 이름 바꾸기</div>
+    <input class="modal-input" id="rename-name" placeholder="새 이름" onkeydown="if(event.key==='Enter')confirmRename()">
+    <div class="modal-actions">
+      <button class="modal-btn cancel" onclick="closeRename()">취소</button>
+      <button class="modal-btn ok" onclick="confirmRename()">변경</button>
+    </div>
+  </div>
+</div>
+
+<!-- Preview modal -->
+<div class="preview-overlay" id="preview-overlay">
+  <div class="preview-header">
+    <button class="preview-close" onclick="closePreview()">✕</button>
+    <div class="preview-name" id="preview-name"></div>
+    <button class="preview-dl-btn" onclick="downloadCurrent()">⬇ 다운로드</button>
+  </div>
+  <div class="preview-body" id="preview-body"></div>
+</div>
+
+<script>
+const NGROK_H = {'ngrok-skip-browser-warning':'true','Content-Type':'application/json'};
+function apiFetch(url, opts={}) {
+  return fetch(url, {...opts, headers: {...NGROK_H, ...(opts.headers||{})}});
+}
+
+let PI_URL = '', UID = '', currentPath = '/', renameTarget = '', previewPath = '';
+
+// ── INIT ──────────────────────────────────────────────────────
+window.onload = () => {
+  PI_URL = localStorage.getItem('MPL_PI') || '';
+  UID    = localStorage.getItem('MPL_USER') || '';
+  const webhard = localStorage.getItem('MPL_WEBHARD') === '1';
+  if (!UID) { showLogin(); return; }
+  if (!webhard) {
+    // 권한 재확인
+    apiFetch(`${PI_URL}/api/me?uid=${UID}`).then(r=>r.json()).then(d=>{
+      if (!d.success || !d.webhard) { alert('웹하드 접근 권한이 없습니다.'); location.href='/player.html'; return; }
+      localStorage.setItem('MPL_WEBHARD','1');
+      startApp();
+    }).catch(()=>startApp());
+  } else {
+    startApp();
+  }
+};
+
+function showLogin() {
+  document.getElementById('login-wrap').style.display='flex';
+  document.getElementById('app').style.display='none';
+  const saved = localStorage.getItem('MPL_PI');
+  if (saved) document.getElementById('lpi-url').value = saved;
+}
+
+async function doLogin() {
+  const url = document.getElementById('lpi-url').value.trim().replace(/\/$/,'');
+  const uid = document.getElementById('lpi-uid').value.trim();
+  const pw  = document.getElementById('lpi-pw').value;
+  const err = document.getElementById('login-err');
+  if (!url||!uid) { err.textContent='URL과 아이디를 입력하세요.'; return; }
+  try {
+    const r = await fetch(url+'/api/login', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'true'},
+      body: JSON.stringify({uid, password:pw})
+    });
+    const d = await r.json();
+    if (!d.success) { err.textContent = d.error||'로그인 실패'; return; }
+    if (!d.webhard && d.role !== 'admin') { err.textContent='웹하드 접근 권한이 없습니다.'; return; }
+    localStorage.setItem('MPL_PI', url);
+    localStorage.setItem('MPL_USER', d.uid);
+    localStorage.setItem('MPL_NICKNAME', d.nickname);
+    localStorage.setItem('MPL_ROLE', d.role);
+    localStorage.setItem('MPL_WEBHARD', d.webhard ? '1' : '0');
+    PI_URL = url; UID = d.uid;
+    startApp();
+  } catch(e) { err.textContent = '연결 실패: '+e.message; }
+}
+
+function startApp() {
+  document.getElementById('login-wrap').style.display='none';
+  document.getElementById('app').style.cssText='display:flex;flex-direction:column;height:100dvh;overflow:hidden';
+  document.getElementById('hdr-user').textContent = localStorage.getItem('MPL_NICKNAME')||UID;
+  loadDir('/');
+  setupDrop();
+}
+
+// ── NAVIGATION ────────────────────────────────────────────────
+async function loadDir(path) {
+  currentPath = path || '/';
+  const area = document.getElementById('file-area');
+  area.innerHTML = '<div class="file-empty"><div class="big">⏳</div>불러오는 중...</div>';
+  renderBreadcrumb(currentPath);
+  try {
+    const r = await apiFetch(`${PI_URL}/api/webhard/ls?uid=${UID}&path=${encodeURIComponent(currentPath)}`);
+    const d = await r.json();
+    if (!d.success) { area.innerHTML=`<div class="file-empty"><div class="big">⚠️</div>${d.msg}</div>`; return; }
+    updateDisk(d.disk);
+    renderFiles(d.items);
+  } catch(e) {
+    area.innerHTML=`<div class="file-empty"><div class="big">⚠️</div>${e.message}</div>`;
+  }
+}
+
+function renderBreadcrumb(path) {
+  const bc = document.getElementById('breadcrumb');
+  const parts = path.replace(/^\/+|\/+$/g,'').split('/').filter(Boolean);
+  let html = `<span class="bc-part${parts.length===0?' current':''}" onclick="loadDir('/')">🏠 홈</span>`;
+  let cumPath = '';
+  parts.forEach((p, i) => {
+    cumPath += '/' + p;
+    const cp = cumPath;
+    const isCurrent = i === parts.length-1;
+    html += `<span class="bc-sep">›</span><span class="bc-part${isCurrent?' current':''}" onclick="${isCurrent?'':''}" data-path="${cp}" title="${p}">${p}</span>`;
+  });
+  bc.innerHTML = html;
+  bc.querySelectorAll('.bc-part[data-path]').forEach(el => {
+    el.onclick = () => loadDir(el.dataset.path);
+  });
+}
+
+function renderFiles(items) {
+  const area = document.getElementById('file-area');
+  if (!items.length) {
+    area.innerHTML='<div class="file-empty"><div class="big">📂</div>폴더가 비어 있습니다</div>';
+    return;
+  }
+  const isRoot = currentPath === '/';
+  let html = '';
+  if (!isRoot) {
+    html += `<div class="file-item" onclick="goUp()">
+      <div class="file-icon">📁</div>
+      <div class="file-name" style="color:var(--muted)">.. (상위 폴더)</div>
+      <div class="file-meta"><div class="file-size"></div><div class="file-date"></div><div class="file-actions"></div></div>
+    </div>`;
+  }
+  items.forEach(item => {
+    const icon = getIcon(item.name, item.type);
+    const size = item.type==='file' ? fmtSize(item.size) : '';
+    const date = fmtDate(item.mtime);
+    const previewable = canPreview(item.name);
+    const itemPath = (currentPath==='/'?'':currentPath)+'/'+item.name;
+    html += `<div class="file-item" ondblclick="${item.type==='dir'?`loadDir('${esc(itemPath)}')`:`openPreview('${esc(item.name)}','${esc(itemPath)}')`}">
+      <div class="file-icon">${icon}</div>
+      <div class="file-name" title="${item.name}">${item.name}</div>
+      <div class="file-meta">
+        <div class="file-size">${size}</div>
+        <div class="file-date">${date}</div>
+        <div class="file-actions">
+          ${item.type==='file' && previewable ? `<button class="fa-btn" onclick="event.stopPropagation();openPreview('${esc(item.name)}','${esc(itemPath)}')" title="미리보기">👁</button>` : ''}
+          ${item.type==='file' ? `<button class="fa-btn" onclick="event.stopPropagation();downloadFile('${esc(itemPath)}','${esc(item.name)}')" title="다운로드">⬇</button>` : ''}
+          <button class="fa-btn" onclick="event.stopPropagation();openRename('${esc(itemPath)}','${esc(item.name)}')" title="이름 바꾸기">✏️</button>
+          <button class="fa-btn del" onclick="event.stopPropagation();deleteItem('${esc(itemPath)}','${esc(item.name)}')" title="삭제">🗑</button>
+        </div>
+      </div>
+    </div>`;
+  });
+  area.innerHTML = html;
+}
+
+function goUp() {
+  const parts = currentPath.replace(/^\/+|\/+$/g,'').split('/').filter(Boolean);
+  parts.pop();
+  loadDir(parts.length ? '/'+parts.join('/') : '/');
+}
+
+// ── DISK USAGE ────────────────────────────────────────────────
+function updateDisk(disk) {
+  if (!disk || !disk.total) return;
+  const pct = disk.used / disk.total;
+  const fill = document.getElementById('disk-fill');
+  fill.style.width = (pct*100).toFixed(1)+'%';
+  fill.className = 'disk-bar-fill' + (pct>0.9?' danger':pct>0.75?' warn':'');
+  document.getElementById('disk-text').textContent = `${fmtSize(disk.used)} / ${fmtSize(disk.total)}`;
+}
+
+// ── UPLOAD ────────────────────────────────────────────────────
+function triggerUpload() { document.getElementById('file-input').click(); }
+
+function uploadSelected() {
+  const files = document.getElementById('file-input').files;
+  if (files.length) uploadFiles(Array.from(files));
+  document.getElementById('file-input').value='';
+}
+
+function setupDrop() {
+  const app = document.getElementById('app');
+  let dragCounter = 0;
+  document.addEventListener('dragenter', e => {
+    if (e.dataTransfer?.types.includes('Files')) { dragCounter++; document.getElementById('drop-overlay').classList.add('active'); }
+  });
+  document.addEventListener('dragleave', e => {
+    dragCounter--;
+    if (dragCounter<=0) { dragCounter=0; document.getElementById('drop-overlay').classList.remove('active'); }
+  });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    e.preventDefault();
+    dragCounter=0;
+    document.getElementById('drop-overlay').classList.remove('active');
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length) uploadFiles(files);
+  });
+}
+
+function uploadFiles(files) {
+  const toast = document.getElementById('upload-toast');
+  const progEl = document.getElementById('upload-prog');
+  const infoEl = document.getElementById('upload-info');
+  const titleEl = document.getElementById('upload-title');
+  const total = files.length;
+  let done = 0;
+  titleEl.textContent = `업로드 중 (${total}개)...`;
+  toast.classList.add('show');
+
+  const uploadOne = (file, idx) => new Promise((resolve, reject) => {
+    const fd = new FormData();
+    fd.append('uid', UID);
+    fd.append('path', currentPath);
+    fd.append('files', file, file.name);
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', PI_URL+'/api/webhard/upload');
+    xhr.setRequestHeader('ngrok-skip-browser-warning','true');
+    xhr.upload.onprogress = e => {
+      if (e.lengthComputable) {
+        const filePct = e.loaded / e.total;
+        const overall = ((idx + filePct) / total * 100).toFixed(0);
+        progEl.style.width = overall+'%';
+        infoEl.textContent = `${file.name} (${fmtSize(e.loaded)} / ${fmtSize(e.total)})`;
+      }
+    };
+    xhr.onload = () => { done++; resolve(); };
+    xhr.onerror = () => reject(new Error(`${file.name} 실패`));
+    xhr.send(fd);
+  });
+
+  (async () => {
+    try {
+      for (let i=0; i<files.length; i++) await uploadOne(files[i], i);
+      progEl.style.width='100%';
+      titleEl.textContent = `✓ ${total}개 업로드 완료`;
+      setTimeout(() => { toast.classList.remove('show'); loadDir(currentPath); }, 1500);
+    } catch(e) {
+      titleEl.textContent = '⚠️ ' + e.message;
+      setTimeout(() => { toast.classList.remove('show'); loadDir(currentPath); }, 2000);
+    }
+  })();
+}
+
+// ── DELETE / RENAME ───────────────────────────────────────────
+async function deleteItem(path, name) {
+  if (!confirm(`"${name}" 을(를) 삭제할까요?`)) return;
+  try {
+    const r = await apiFetch(`${PI_URL}/api/webhard/file?uid=${UID}&path=${encodeURIComponent(path)}`, {method:'DELETE'});
+    const d = await r.json();
+    if (!d.success) { alert(d.msg); return; }
+    loadDir(currentPath);
+  } catch(e) { alert(e.message); }
+}
+
+let renameOrigPath = '';
+function openRename(path, name) {
+  renameOrigPath = path;
+  document.getElementById('rename-name').value = name;
+  document.getElementById('rename-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('rename-name').select(), 50);
+}
+function closeRename() { document.getElementById('rename-modal').classList.remove('open'); }
+async function confirmRename() {
+  const newName = document.getElementById('rename-name').value.trim();
+  if (!newName) return;
+  try {
+    const r = await apiFetch(`${PI_URL}/api/webhard/rename`, {
+      method:'POST', body: JSON.stringify({uid:UID, path:renameOrigPath, new_name:newName})
+    });
+    const d = await r.json();
+    if (!d.success) { alert(d.msg); return; }
+    closeRename(); loadDir(currentPath);
+  } catch(e) { alert(e.message); }
+}
+
+// ── MKDIR ─────────────────────────────────────────────────────
+function openMkdir() {
+  document.getElementById('mkdir-name').value='';
+  document.getElementById('mkdir-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('mkdir-name').focus(), 50);
+}
+function closeMkdir() { document.getElementById('mkdir-modal').classList.remove('open'); }
+async function confirmMkdir() {
+  const name = document.getElementById('mkdir-name').value.trim();
+  if (!name) return;
+  try {
+    const r = await apiFetch(`${PI_URL}/api/webhard/mkdir`, {
+      method:'POST', body: JSON.stringify({uid:UID, path:currentPath, name})
+    });
+    const d = await r.json();
+    if (!d.success) { alert(d.msg); return; }
+    closeMkdir(); loadDir(currentPath);
+  } catch(e) { alert(e.message); }
+}
+
+// ── DOWNLOAD ─────────────────────────────────────────────────
+function downloadFile(path, name) {
+  const a = document.createElement('a');
+  a.href = `${PI_URL}/api/webhard/file?uid=${UID}&path=${encodeURIComponent(path)}&dl=1`;
+  a.download = name;
+  a.target = '_blank';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+function downloadCurrent() {
+  const name = document.getElementById('preview-name').textContent;
+  downloadFile(previewPath, name);
+}
+
+// ── PREVIEW ──────────────────────────────────────────────────
+const IMG_EXTS  = new Set(['jpg','jpeg','png','gif','bmp','webp','svg','heic','avif']);
+const TEXT_EXTS = new Set(['txt','md','csv','log','json','js','ts','py','html','xml','yaml','yml','ini','sh','bat','css','sql']);
+const EXCEL_EXTS= new Set(['xlsx','xls']);
+const PDF_EXTS  = new Set(['pdf']);
+const VIDEO_EXTS= new Set(['mp4','webm','mov','mkv','avi']);
+const AUDIO_EXTS= new Set(['mp3','m4a','wav','flac','ogg','aac']);
+
+function ext(name) { return name.split('.').pop().toLowerCase(); }
+function canPreview(name) {
+  const e = ext(name);
+  return IMG_EXTS.has(e)||TEXT_EXTS.has(e)||EXCEL_EXTS.has(e)||PDF_EXTS.has(e)||VIDEO_EXTS.has(e)||AUDIO_EXTS.has(e);
+}
+
+async function openPreview(name, path) {
+  previewPath = path;
+  document.getElementById('preview-name').textContent = name;
+  document.getElementById('preview-body').innerHTML = '<div class="file-empty"><div class="big">⏳</div>불러오는 중...</div>';
+  document.getElementById('preview-overlay').classList.add('open');
+  const url = `${PI_URL}/api/webhard/file?uid=${UID}&path=${encodeURIComponent(path)}`;
+  const e = ext(name);
+  try {
+    if (IMG_EXTS.has(e)) {
+      const blob = await apiFetch(url).then(r=>r.blob());
+      const burl = URL.createObjectURL(blob);
+      document.getElementById('preview-body').innerHTML = `<img class="preview-img" src="${burl}">`;
+    } else if (PDF_EXTS.has(e)) {
+      const blob = await apiFetch(url).then(r=>r.blob());
+      const burl = URL.createObjectURL(blob);
+      document.getElementById('preview-body').innerHTML = `<iframe class="preview-frame" src="${burl}"></iframe>`;
+    } else if (TEXT_EXTS.has(e)) {
+      const text = await apiFetch(url).then(r=>r.text());
+      const escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      document.getElementById('preview-body').innerHTML = `<pre class="preview-text">${escaped}</pre>`;
+    } else if (EXCEL_EXTS.has(e)) {
+      const buf = await apiFetch(url).then(r=>r.arrayBuffer());
+      const wb = XLSX.read(buf, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const html = XLSX.utils.sheet_to_html(ws, {editable:false});
+      document.getElementById('preview-body').innerHTML = `<div class="preview-table-wrap">${html}</div>`;
+    } else if (VIDEO_EXTS.has(e)) {
+      const blob = await apiFetch(url).then(r=>r.blob());
+      const burl = URL.createObjectURL(blob);
+      document.getElementById('preview-body').innerHTML = `<video class="preview-media" src="${burl}" controls autoplay></video>`;
+    } else if (AUDIO_EXTS.has(e)) {
+      const blob = await apiFetch(url).then(r=>r.blob());
+      const burl = URL.createObjectURL(blob);
+      document.getElementById('preview-body').innerHTML = `<audio class="preview-media" src="${burl}" controls autoplay></audio>`;
+    } else {
+      document.getElementById('preview-body').innerHTML = `<div class="preview-unsupported"><div class="big">${getIcon(name,'file')}</div>미리보기를 지원하지 않는 파일입니다.</div>`;
+    }
+  } catch(err) {
+    document.getElementById('preview-body').innerHTML = `<div class="preview-unsupported"><div class="big">⚠️</div>${err.message}</div>`;
+  }
+}
+
+function closePreview() { document.getElementById('preview-overlay').classList.remove('open'); }
+document.addEventListener('keydown', e => { if (e.key==='Escape') closePreview(); });
+
+// ── HELPERS ──────────────────────────────────────────────────
+function getIcon(name, type) {
+  if (type==='dir') return '📁';
+  const e = ext(name);
+  if (IMG_EXTS.has(e))  return '🖼️';
+  if (PDF_EXTS.has(e))  return '📄';
+  if (EXCEL_EXTS.has(e)||e==='csv') return '📊';
+  if (['doc','docx'].includes(e))   return '📝';
+  if (['ppt','pptx'].includes(e))   return '📑';
+  if (VIDEO_EXTS.has(e)) return '🎥';
+  if (AUDIO_EXTS.has(e)) return '🎵';
+  if (['zip','rar','7z','tar','gz'].includes(e)) return '📦';
+  if (TEXT_EXTS.has(e))  return '📃';
+  return '📎';
+}
+function fmtSize(b) {
+  if (b===0) return '0 B';
+  const u=['B','KB','MB','GB','TB'];
+  const i = Math.floor(Math.log(b)/Math.log(1024));
+  return (b/1024**i).toFixed(i?1:0)+' '+u[i];
+}
+function fmtDate(ts) {
+  const d = new Date(ts*1000);
+  const now = new Date();
+  if (d.getFullYear()===now.getFullYear()&&d.getMonth()===now.getMonth()&&d.getDate()===now.getDate())
+    return d.toTimeString().slice(0,5);
+  return `${d.getMonth()+1}/${d.getDate()} ${d.toTimeString().slice(0,5)}`;
+}
+function esc(s) { return s.replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+</script>
+</body>
+</html>
