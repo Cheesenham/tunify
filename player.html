@@ -59,10 +59,45 @@
         .track-btn:hover { color: white; border-color: #555; }
 
         .playlist-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
-        .playlist-card { background: var(--sc-surface); border-radius: 8px; padding: 16px 14px; cursor: pointer; transition: 0.15s; border: 1px solid var(--sc-border); }
-        .playlist-card:hover { border-color: var(--sc-orange); background: rgba(255,85,0,0.07); transform: translateY(-2px); }
-        .playlist-card .icon { font-size: 2rem; margin-bottom: 10px; }
-        .playlist-card .name { font-size: 0.88rem; font-weight: 600; }
+        .playlist-card { background: var(--sc-surface); border-radius: 8px; padding: 14px 12px; transition: 0.15s; border: 1px solid var(--sc-border); }
+        .playlist-card:hover { border-color: var(--sc-orange); background: rgba(255,85,0,0.07); }
+        .playlist-card .icon { font-size: 2rem; margin-bottom: 8px; }
+        .playlist-card .name { font-size: 0.88rem; font-weight: 600; cursor: pointer; }
+        .playlist-card .count { font-size: 0.72rem; color: #666; margin-top: 4px; }
+        .playlist-card-actions { display: flex; gap: 6px; margin-top: 10px; }
+        .pl-action-btn { flex: 1; padding: 6px 4px; border-radius: 6px; border: 1px solid #333; background: none; color: #aaa; font-size: 0.75rem; cursor: pointer; font-family: inherit; transition: 0.12s; }
+        .pl-action-btn:hover { border-color: var(--sc-orange); color: white; background: rgba(255,85,0,0.1); }
+        .pl-action-btn.shuffle { color: #4ade80; border-color: #1a4a2a; }
+        .pl-action-btn.shuffle:hover { background: rgba(74,222,128,0.1); border-color: #4ade80; }
+
+        /* Context menu */
+        .ctx-menu { display: none; position: fixed; z-index: 500; background: #1e1e1e; border: 1px solid #333; border-radius: 10px; padding: 6px 0; min-width: 160px; box-shadow: 0 8px 24px rgba(0,0,0,0.6); }
+        .ctx-menu-item { padding: 11px 16px; cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; gap: 10px; transition: 0.1s; }
+        .ctx-menu-item:hover { background: rgba(255,85,0,0.1); color: white; }
+
+        /* Queue badge */
+        .queue-badge { position: relative; background: none; border: 1px solid #333; color: #aaa; cursor: pointer; font-size: 0.8rem; padding: 5px 10px; border-radius: 6px; font-family: inherit; transition: 0.12s; }
+        .queue-badge:hover { color: white; border-color: #555; }
+        .queue-badge .badge-count { position: absolute; top: -6px; right: -6px; background: var(--sc-orange); color: white; border-radius: 50%; width: 16px; height: 16px; font-size: 0.6rem; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+        .shuffle-indicator { color: #4ade80; border-color: #1a4a2a !important; }
+
+        /* Queue panel */
+        .queue-panel { display: none; position: fixed; inset: 0; z-index: 250; background: rgba(0,0,0,0.7); }
+        .queue-panel.open { display: flex; align-items: flex-end; }
+        .queue-inner { background: #1a1a1a; border-top: 1px solid #2a2a2a; border-radius: 16px 16px 0 0; width: 100%; max-height: 75vh; display: flex; flex-direction: column; padding-bottom: env(safe-area-inset-bottom); }
+        .queue-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid #2a2a2a; flex-shrink: 0; }
+        .queue-header h3 { font-size: 0.9rem; font-weight: 700; }
+        .queue-header-actions { display: flex; gap: 8px; align-items: center; }
+        .queue-btn { padding: 6px 12px; border-radius: 6px; border: 1px solid #333; background: none; color: #aaa; font-size: 0.75rem; cursor: pointer; font-family: inherit; transition: 0.12s; }
+        .queue-btn:hover { color: white; border-color: #555; }
+        .queue-btn.active { color: #4ade80; border-color: #4ade80; }
+        .queue-list { overflow-y: auto; flex: 1; padding: 8px; }
+        .queue-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 6px; border-bottom: 1px solid #222; }
+        .queue-item-info { flex: 1; min-width: 0; }
+        .queue-item-title { font-size: 0.83rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .queue-item-artist { font-size: 0.72rem; color: var(--sc-muted); margin-top: 1px; }
+        .queue-item-remove { background: none; border: none; color: #555; cursor: pointer; font-size: 1rem; padding: 4px 6px; border-radius: 4px; transition: 0.12s; flex-shrink: 0; }
+        .queue-item-remove:hover { color: #f87171; }
 
         .player-bar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 90; height: var(--player-h); background: #111; border-top: 1px solid var(--sc-border); display: flex; align-items: center; padding: 0 20px; gap: 20px; }
         .now-playing { display: flex; align-items: center; gap: 12px; width: 240px; flex-shrink: 0; }
@@ -225,6 +260,9 @@
             .track-thumb { width: 38px; height: 38px; }
             .player-bar { padding: 0 12px; gap: 12px; }
             .fab { bottom: 156px; }
+            .queue-badge { padding: 5px 8px; font-size: 0.75rem; }
+            .playlist-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+            .queue-inner { max-height: 80vh; }
         }
 
         /* Lyrics Search Modal */
@@ -284,7 +322,11 @@
         <div class="np-header">
             <button class="np-down-btn" onclick="closeNowPlaying()">⌄</button>
             <div class="np-label">Now Playing</div>
-            <button class="np-down-btn" onclick="openLyricsSearch()" title="가사 검색" style="font-size:1rem;">🔍</button>
+            <div style="display:flex;gap:6px;">
+                <button class="np-down-btn" id="np-shuffle-btn" onclick="toggleShuffle()" title="셔플" style="font-size:1rem;">⇄</button>
+                <button class="np-down-btn" onclick="openQueue()" title="재생 대기열" style="font-size:1rem;">☰</button>
+                <button class="np-down-btn" onclick="openLyricsSearch()" title="가사 검색" style="font-size:1rem;">🔍</button>
+            </div>
         </div>
         <div class="np-body">
             <div class="np-left">
@@ -344,6 +386,11 @@
                 <button class="sync-btn" onclick="adjustSync(0.1)">+0.1s</button>
                 <button class="sync-btn sync-save" id="save-btn" style="display:none;" onclick="saveSync()">Save</button>
             </div>
+            <button class="queue-badge" id="queue-badge" onclick="openQueue()" title="재생 대기열">
+                ☰
+                <span class="badge-count" id="queue-count" style="display:none;">0</span>
+            </button>
+            <button class="queue-badge" id="shuffle-btn" onclick="toggleShuffle()" title="셔플">⇄</button>
             <div class="vol-wrap">
                 <span style="color:var(--sc-muted); font-size:0.85rem;">🔊</span>
                 <input type="range" class="vol-slider" min="0" max="1" step="0.05" value="1" oninput="audio.volume=this.value">
@@ -352,6 +399,27 @@
     </div>
 
     <button class="fab" onclick="openCreatePlaylist()">＋</button>
+
+    <!-- Context Menu -->
+    <div class="ctx-menu" id="ctx-menu">
+        <div class="ctx-menu-item" onclick="ctxPlayNext()">▶ Play Next에 추가</div>
+        <div class="ctx-menu-item" onclick="ctxPlayNow()">▶ 지금 재생</div>
+    </div>
+
+    <!-- Queue Panel -->
+    <div class="queue-panel" id="queue-panel" onclick="closeQueue()">
+        <div class="queue-inner" onclick="event.stopPropagation()">
+            <div class="queue-header">
+                <h3>재생 대기열 <span id="queue-header-count" style="color:#666;font-size:0.8rem;font-weight:400;"></span></h3>
+                <div class="queue-header-actions">
+                    <button class="queue-btn" id="queue-shuffle-btn" onclick="shuffleQueue()">🔀 섞기</button>
+                    <button class="queue-btn" onclick="clearQueue()">전체 삭제</button>
+                    <button class="queue-btn" onclick="closeQueue()">✕</button>
+                </div>
+            </div>
+            <div class="queue-list" id="queue-list"></div>
+        </div>
+    </div>
 
     <div class="modal-overlay" id="modal-overlay" onclick="closeModal()"></div>
     <div class="modal-box" id="modal-box">
@@ -416,6 +484,12 @@
 
         let allFiles = [], playlists = [], trackList = [], currentIdx = 0, currentItem = null;
         let lyrics = [], activeView = 'all', syncOffset = 0;
+        let playQueue = [];          // Play Next 대기열
+        let playContextList = [];    // 현재 재생 컨텍스트 (뷰 변경과 무관하게 고정)
+        let shuffleMode = false;     // 셔플 on/off
+        let ctxTrack = null;         // 컨텍스트 메뉴 대상 트랙
+        let longPressTimer = null;   // 모바일 꾹누르기 타이머
+        let longPressFired = false;
 
         // --- View ---
         function setView(v) {
@@ -459,7 +533,11 @@
                     return;
                 }
                 container.innerHTML = trackList.map((f, i) => `
-                    <div class="track-item ${currentItem?.id === f.id ? 'playing' : ''}" id="track-${f.id}" data-idx="${i}" onclick="playByIdx(${i})">
+                    <div class="track-item ${currentItem?.id === f.id ? 'playing' : ''}" id="track-${f.id}" data-idx="${i}"
+                         onclick="trackClick(event,${i})"
+                         oncontextmenu='showCtxMenu(event,${JSON.stringify(f).replace(/'/g,"&#39;")})'
+                         ontouchstart='trackTouchStart(event,${JSON.stringify(f).replace(/'/g,"&#39;")})'
+                         ontouchend="trackTouchEnd()" ontouchmove="trackTouchMove()">
                         <div class="track-num">${currentItem?.id === f.id ? '♫' : i + 1}</div>
                         <div class="track-thumb-wrap">
                             <img class="track-thumb" src="${f.thumbnail || ''}" onerror="this.style.opacity=0">
@@ -481,10 +559,14 @@
                     return;
                 }
                 container.innerHTML = '<div class="playlist-grid">' + playlists.map(p => `
-                    <div class="playlist-card" onclick='openPlaylist(${p.id}, "${p.name.replace(/"/g,"&quot;")}") '>
-                        <div class="icon">📁</div>
-                        <div class="name">${p.name}</div>
-                        <div style="font-size:0.72rem;color:#666;margin-top:4px;">${p.items.length}곡</div>
+                    <div class="playlist-card">
+                        <div class="icon" onclick='openPlaylist(${p.id},"${p.name.replace(/"/g,"&quot;")}") ' style="cursor:pointer;">📁</div>
+                        <div class="name" onclick='openPlaylist(${p.id},"${p.name.replace(/"/g,"&quot;")}") '>${p.name}</div>
+                        <div class="count">${p.items.length}곡</div>
+                        <div class="playlist-card-actions">
+                            <button class="pl-action-btn" onclick="playPlaylist(${p.id},false)">▶ 재생</button>
+                            <button class="pl-action-btn shuffle" onclick="playPlaylist(${p.id},true)">🔀 셔플</button>
+                        </div>
                     </div>
                 `).join('') + '</div>';
             }
@@ -494,15 +576,22 @@
             const pl = playlists.find(p => p.id === pid);
             if (!pl) return;
             trackList = allFiles.filter(f => pl.items.includes(f.id));
+            playContextList = [...trackList];
             const container = document.getElementById('track-list');
             document.getElementById('view-title').innerText = '📁 ' + name;
             container.innerHTML = `
-                <div style="margin-bottom:14px;">
+                <div style="margin-bottom:14px;display:flex;gap:8px;align-items:center;">
                     <button class="track-btn" onclick="setView('playlist')">← Back</button>
+                    <button class="pl-action-btn" style="padding:6px 14px;" onclick="playPlaylist(${pid},false)">▶ 전체 재생</button>
+                    <button class="pl-action-btn shuffle" style="padding:6px 14px;" onclick="playPlaylist(${pid},true)">🔀 셔플</button>
                 </div>
                 ${trackList.map((f, i) => `
-                    <div class="track-item" onclick='playSong(${JSON.stringify(f).replace(/'/g,"&#39;")}, ${i})'>
-                        <div class="track-num">${i + 1}</div>
+                    <div class="track-item ${currentItem?.id === f.id ? 'playing' : ''}" id="track-${f.id}"
+                         onclick="trackClick(event,${i})"
+                         oncontextmenu='showCtxMenu(event,${JSON.stringify(f).replace(/'/g,"&#39;")})'
+                         ontouchstart='trackTouchStart(event,${JSON.stringify(f).replace(/'/g,"&#39;")})'
+                         ontouchend="trackTouchEnd()" ontouchmove="trackTouchMove()">
+                        <div class="track-num">${currentItem?.id === f.id ? '♫' : i + 1}</div>
                         <div class="track-thumb-wrap">
                             <img class="track-thumb" src="${f.thumbnail || ''}" onerror="this.style.opacity=0">
                             <div class="play-overlay">▶</div>
@@ -517,11 +606,14 @@
         }
 
         // --- Playback ---
-        function playByIdx(i) { playSong(trackList[i], i); }
+        function playByIdx(i) {
+            playSong(trackList[i], i);
+            playContextList = [...trackList];
+        }
 
         async function playSong(item, idx) {
             currentItem = item;
-            currentIdx = idx;
+            currentIdx = idx ?? playContextList.findIndex(f => f.id === item.id);
             document.querySelectorAll('.track-item').forEach(el => el.classList.remove('playing'));
             document.getElementById('track-' + item.id)?.classList.add('playing');
             document.getElementById('now-thumb').src = item.thumbnail || '';
@@ -576,9 +668,42 @@
                 document.getElementById('np-play-btn').innerText = '▶';
             }
         }
-        function prevTrack() { if (currentIdx > 0) playSong(trackList[currentIdx - 1], currentIdx - 1); }
-        function nextTrack() { if (currentIdx < trackList.length - 1) playSong(trackList[currentIdx + 1], currentIdx + 1); }
-        audio.onended = () => nextTrack();
+        function prevTrack() {
+            const list = playContextList.length ? playContextList : trackList;
+            const idx = list.findIndex(f => f.id === currentItem?.id);
+            if (idx > 0) playSong(list[idx - 1], idx - 1);
+        }
+        function nextTrack() { playNextTrack(true); }
+
+        function playNextTrack(manual = false) {
+            // 1순위: Play Next 큐
+            if (playQueue.length > 0) {
+                const next = playQueue.shift();
+                updateQueueBadge();
+                playSong(next);
+                return;
+            }
+            const list = playContextList.length ? playContextList : trackList;
+            if (!list.length) return;
+            const idx = list.findIndex(f => f.id === currentItem?.id);
+            // 2순위: 셔플
+            if (shuffleMode) {
+                let nextIdx;
+                do { nextIdx = Math.floor(Math.random() * list.length); }
+                while (list.length > 1 && nextIdx === idx);
+                playSong(list[nextIdx], nextIdx);
+                return;
+            }
+            // 3순위: 순차 재생
+            const nextIdx = idx + 1;
+            if (nextIdx < list.length) {
+                playSong(list[nextIdx], nextIdx);
+            } else if (!manual) {
+                // 끝까지 다 재생 → 첫 곡으로
+                playSong(list[0], 0);
+            }
+        }
+        audio.onended = () => playNextTrack();
 
         function seekTo(e) {
             if (!audio.duration) return;
@@ -625,6 +750,129 @@
                 });
             }
         };
+
+        // --- Context Menu ---
+        function showCtxMenu(e, track) {
+            e.preventDefault(); e.stopPropagation();
+            ctxTrack = track;
+            const menu = document.getElementById('ctx-menu');
+            menu.style.display = 'block';
+            const x = e.clientX ?? e.touches?.[0]?.clientX ?? 0;
+            const y = e.clientY ?? e.touches?.[0]?.clientY ?? 0;
+            menu.style.left = Math.min(x, window.innerWidth - 180) + 'px';
+            menu.style.top = Math.min(y, window.innerHeight - 90) + 'px';
+        }
+        function hideCtxMenu() { document.getElementById('ctx-menu').style.display = 'none'; ctxTrack = null; }
+        function ctxPlayNext() {
+            if (!ctxTrack) return;
+            playQueue.push(ctxTrack);
+            updateQueueBadge();
+            hideCtxMenu();
+        }
+        function ctxPlayNow() {
+            if (!ctxTrack) return;
+            playSong(ctxTrack);
+            hideCtxMenu();
+        }
+        document.addEventListener('click', hideCtxMenu);
+        document.addEventListener('touchstart', (e) => {
+            if (!e.target.closest('#ctx-menu')) hideCtxMenu();
+        });
+
+        // Long press handlers
+        function trackTouchStart(e, track) {
+            longPressFired = false;
+            longPressTimer = setTimeout(() => {
+                longPressFired = true;
+                showCtxMenu(e, track);
+            }, 550);
+        }
+        function trackTouchEnd() {
+            clearTimeout(longPressTimer);
+        }
+        function trackTouchMove() {
+            clearTimeout(longPressTimer);
+            longPressFired = false;
+        }
+        function trackClick(e, idx) {
+            if (longPressFired) { longPressFired = false; return; }
+            playByIdx(idx);
+        }
+
+        // --- Queue ---
+        function updateQueueBadge() {
+            const n = playQueue.length;
+            const cnt = document.getElementById('queue-count');
+            cnt.style.display = n > 0 ? 'flex' : 'none';
+            cnt.innerText = n;
+        }
+        function openQueue() {
+            renderQueue();
+            document.getElementById('queue-panel').classList.add('open');
+        }
+        function closeQueue() { document.getElementById('queue-panel').classList.remove('open'); }
+        function renderQueue() {
+            const list = document.getElementById('queue-list');
+            const cnt = document.getElementById('queue-header-count');
+            cnt.innerText = playQueue.length ? `(${playQueue.length}곡)` : '(비어있음)';
+            if (!playQueue.length) {
+                list.innerHTML = '<div style="padding:24px;text-align:center;color:#444;font-size:0.85rem;">대기 중인 곡이 없습니다.</div>';
+                return;
+            }
+            list.innerHTML = playQueue.map((t, i) => `
+                <div class="queue-item">
+                    <div class="track-thumb-wrap" style="width:36px;height:36px;flex-shrink:0;">
+                        <img class="track-thumb" src="${t.thumbnail||''}" onerror="this.style.opacity=0" style="width:36px;height:36px;">
+                    </div>
+                    <div class="queue-item-info">
+                        <div class="queue-item-title">${t.filename}</div>
+                        <div class="queue-item-artist">${t.artist||'—'}</div>
+                    </div>
+                    <button class="queue-item-remove" onclick="removeFromQueue(${i})">✕</button>
+                </div>
+            `).join('');
+        }
+        function removeFromQueue(i) {
+            playQueue.splice(i, 1);
+            updateQueueBadge();
+            renderQueue();
+        }
+        function clearQueue() {
+            playQueue = [];
+            updateQueueBadge();
+            renderQueue();
+        }
+        function shuffleQueue() {
+            for (let i = playQueue.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [playQueue[i], playQueue[j]] = [playQueue[j], playQueue[i]];
+            }
+            renderQueue();
+        }
+
+        // --- Shuffle ---
+        function toggleShuffle() {
+            shuffleMode = !shuffleMode;
+            ['shuffle-btn','np-shuffle-btn'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.toggle('shuffle-indicator', shuffleMode);
+            });
+        }
+
+        // --- Play Playlist ---
+        function playPlaylist(pid, shuffle) {
+            const pl = playlists.find(p => p.id === pid);
+            if (!pl) return;
+            let tracks = allFiles.filter(f => pl.items.includes(f.id));
+            if (!tracks.length) return;
+            if (shuffle) {
+                tracks = [...tracks].sort(() => Math.random() - 0.5);
+                if (!shuffleMode) toggleShuffle();
+            }
+            trackList = tracks;
+            playContextList = tracks;
+            playSong(tracks[0], 0);
+        }
 
         // --- Now Playing Screen ---
         function openNowPlaying() {
