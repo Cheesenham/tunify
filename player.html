@@ -973,6 +973,7 @@
                 allFiles = (d.files || []).map(f => ({
                     ...f,
                     url: PI_URL + f.path,
+                    thumbnail: f.thumbnail?.startsWith('/') ? PI_URL + f.thumbnail : (f.thumbnail || ''),
                     mpl_url: f.lrc_path ? PI_URL + f.lrc_path : null
                 }));
             } catch(e) { allFiles = []; }
