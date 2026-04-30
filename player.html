@@ -490,6 +490,8 @@
         let ctxTrack = null;         // 컨텍스트 메뉴 대상 트랙
         let longPressTimer = null;   // 모바일 꾹누르기 타이머
         let longPressFired = false;
+        let prefetchCache = {};      // id → blobUrl 미리 불러온 곡
+        let prefetchTriggered = false;
 
         // --- View ---
         function setView(v) {
@@ -627,20 +629,26 @@
             document.getElementById('np-artist-label').innerText = item.artist || '—';
             document.getElementById('play-btn').innerText = '⏸';
             document.getElementById('np-play-btn').innerText = '⏸';
-            lyrics = []; syncOffset = 0;
+            lyrics = []; syncOffset = 0; prefetchTriggered = false;
 
-            // ngrok은 <audio> 직접 요청을 HTML 경고 페이지로 반환 →
-            // apiFetch로 Blob 다운 후 objectURL 사용
             audio.pause();
             if (audio._blobUrl) { URL.revokeObjectURL(audio._blobUrl); audio._blobUrl = null; }
             try {
-                const resp = await apiFetch(item.url);
-                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-                const blob = await resp.blob();
-                audio._blobUrl = URL.createObjectURL(blob);
+                // 미리 불러온 캐시가 있으면 즉시 재생
+                if (prefetchCache[item.id]) {
+                    audio._blobUrl = prefetchCache[item.id];
+                    delete prefetchCache[item.id];
+                } else {
+                    const resp = await apiFetch(item.url);
+                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                    const blob = await resp.blob();
+                    audio._blobUrl = URL.createObjectURL(blob);
+                }
                 audio.src = audio._blobUrl;
                 document.getElementById('now-title').style.color = 'white';
                 audio.play().catch(e => console.error('play:', e));
+                // 재생 시작 후 다음 곡 prefetch 시작
+                setTimeout(prefetchNext, 2000);
             } catch(e) {
                 document.getElementById('now-title').innerText = '로드 실패: ' + e.message;
                 document.getElementById('now-title').style.color = '#f87171';
@@ -726,6 +734,11 @@
 
         audio.ontimeupdate = () => {
             const pct = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
+            // 50% 지점에서 prefetch 한번 더 시도 (2초 타이머가 실패했을 경우 보완)
+            if (!prefetchTriggered && pct > 50) {
+                prefetchTriggered = true;
+                prefetchNext();
+            }
             document.getElementById('waveform-fill').style.width = pct + '%';
             document.getElementById('cur-time').innerText = fmtTime(audio.currentTime);
             document.getElementById('dur-time').innerText = fmtTime(audio.duration);
@@ -800,6 +813,31 @@
         }
 
         // --- Queue ---
+        function getUpcomingTracks(count = 8) {
+            const result = [];
+            // 1) 수동 큐
+            result.push(...playQueue.slice(0, count));
+            if (result.length >= count) return result;
+            // 2) 자동 편성 (컨텍스트 기반)
+            const list = playContextList.length ? playContextList : trackList;
+            if (!list.length) return result;
+            const idx = list.findIndex(f => f.id === currentItem?.id);
+            const manualIds = new Set(playQueue.map(f => f.id));
+            if (shuffleMode) {
+                const pool = list.filter(f => f.id !== currentItem?.id && !manualIds.has(f.id));
+                const shuffled = [...pool].sort(() => Math.random() - 0.5);
+                result.push(...shuffled.slice(0, count - result.length));
+            } else {
+                for (let i = idx + 1; result.length < count && i < list.length; i++) {
+                    if (!manualIds.has(list[i].id)) result.push(list[i]);
+                }
+                for (let i = 0; result.length < count && i <= idx; i++) {
+                    if (!manualIds.has(list[i].id)) result.push(list[i]);
+                }
+            }
+            return result;
+        }
+
         function updateQueueBadge() {
             const n = playQueue.length;
             const cnt = document.getElementById('queue-count');
@@ -811,26 +849,52 @@
             document.getElementById('queue-panel').classList.add('open');
         }
         function closeQueue() { document.getElementById('queue-panel').classList.remove('open'); }
+
+        function queueItemHTML(t, i, isManual) {
+            const isPrefetched = !!prefetchCache[t.id];
+            return `<div class="queue-item">
+                <div class="track-thumb-wrap" style="width:36px;height:36px;flex-shrink:0;">
+                    <img class="track-thumb" src="${t.thumbnail||''}" onerror="this.style.opacity=0" style="width:36px;height:36px;">
+                </div>
+                <div class="queue-item-info">
+                    <div class="queue-item-title">${t.filename}${isPrefetched ? ' <span style="color:#4ade80;font-size:0.65rem;">●</span>' : ''}</div>
+                    <div class="queue-item-artist">${t.artist||'—'}</div>
+                </div>
+                ${isManual
+                    ? `<button class="queue-item-remove" onclick="removeFromQueue(${i})">✕</button>`
+                    : `<button class="queue-item-remove" onclick="addAutoToQueue(${i})" title="Play Next에 고정" style="color:#666;font-size:0.75rem;">＋</button>`}
+            </div>`;
+        }
+
         function renderQueue() {
             const list = document.getElementById('queue-list');
             const cnt = document.getElementById('queue-header-count');
-            cnt.innerText = playQueue.length ? `(${playQueue.length}곡)` : '(비어있음)';
-            if (!playQueue.length) {
-                list.innerHTML = '<div style="padding:24px;text-align:center;color:#444;font-size:0.85rem;">대기 중인 곡이 없습니다.</div>';
-                return;
+            const upcoming = getUpcomingTracks(8);
+            cnt.innerText = playQueue.length ? `(수동 ${playQueue.length}곡)` : '';
+
+            let html = '';
+            if (playQueue.length) {
+                html += `<div style="padding:8px 10px 4px;font-size:0.7rem;color:#666;text-transform:uppercase;letter-spacing:1px;">Play Next</div>`;
+                html += playQueue.map((t, i) => queueItemHTML(t, i, true)).join('');
+                html += `<div style="margin:6px 0;border-top:1px solid #222;"></div>`;
             }
-            list.innerHTML = playQueue.map((t, i) => `
-                <div class="queue-item">
-                    <div class="track-thumb-wrap" style="width:36px;height:36px;flex-shrink:0;">
-                        <img class="track-thumb" src="${t.thumbnail||''}" onerror="this.style.opacity=0" style="width:36px;height:36px;">
-                    </div>
-                    <div class="queue-item-info">
-                        <div class="queue-item-title">${t.filename}</div>
-                        <div class="queue-item-artist">${t.artist||'—'}</div>
-                    </div>
-                    <button class="queue-item-remove" onclick="removeFromQueue(${i})">✕</button>
-                </div>
-            `).join('');
+            const autoTracks = upcoming.slice(playQueue.length);
+            if (autoTracks.length) {
+                html += `<div style="padding:8px 10px 4px;font-size:0.7rem;color:#666;text-transform:uppercase;letter-spacing:1px;">자동 재생 예정</div>`;
+                html += autoTracks.map((t, i) => queueItemHTML(t, i, false)).join('');
+            }
+            if (!html) html = '<div style="padding:24px;text-align:center;color:#444;font-size:0.85rem;">재생 목록이 없습니다.</div>';
+            list.innerHTML = html;
+        }
+
+        function addAutoToQueue(autoIdx) {
+            const upcoming = getUpcomingTracks(8);
+            const autoTracks = upcoming.slice(playQueue.length);
+            if (autoTracks[autoIdx]) {
+                playQueue.push(autoTracks[autoIdx]);
+                updateQueueBadge();
+                renderQueue();
+            }
         }
         function removeFromQueue(i) {
             playQueue.splice(i, 1);
@@ -848,6 +912,29 @@
                 [playQueue[i], playQueue[j]] = [playQueue[j], playQueue[i]];
             }
             renderQueue();
+        }
+
+        // --- Prefetch ---
+        async function prefetchNext() {
+            const upcoming = getUpcomingTracks(2);
+            for (const track of upcoming) {
+                if (prefetchCache[track.id]) continue;
+                try {
+                    const resp = await apiFetch(track.url);
+                    if (!resp.ok) continue;
+                    const blob = await resp.blob();
+                    prefetchCache[track.id] = URL.createObjectURL(blob);
+                    // 오래된 캐시 정리 (현재+다음 2곡만 유지)
+                    const keepIds = new Set([currentItem?.id, ...upcoming.map(f => f.id)]);
+                    Object.keys(prefetchCache).forEach(id => {
+                        if (!keepIds.has(Number(id))) {
+                            URL.revokeObjectURL(prefetchCache[id]);
+                            delete prefetchCache[id];
+                        }
+                    });
+                } catch(e) {}
+                break; // 한번에 하나씩 prefetch
+            }
         }
 
         // --- Shuffle ---
