@@ -10,15 +10,11 @@
 :root{--bg:#111;--surface:#1a1a1a;--surface2:#222;--border:#2a2a2a;--text:#e0e0e0;--muted:#666;--orange:#f97316;--red:#f87171;--blue:#60a5fa;--green:#4ade80}
 body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
 
-/* ── LOGIN ── */
-.login-wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:999}
-.login-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px 28px;width:min(360px,90vw)}
-.login-logo{font-size:1.5rem;font-weight:800;color:var(--orange);margin-bottom:6px}
-.login-sub{color:var(--muted);font-size:0.82rem;margin-bottom:24px}
-.login-input{width:100%;background:#2a2a2a;border:1px solid #333;border-radius:6px;padding:10px 12px;color:var(--text);font-size:0.9rem;margin-bottom:10px;font-family:inherit}
-.login-input:focus{outline:none;border-color:var(--orange)}
-.login-btn{width:100%;padding:11px;background:var(--orange);color:#fff;border:none;border-radius:6px;font-weight:700;font-size:0.9rem;cursor:pointer;margin-top:4px;font-family:inherit}
-.login-err{color:var(--red);font-size:0.8rem;margin-top:8px;min-height:1.2em}
+/* ── ACCESS DENIED ── */
+.denied-wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:999;text-align:center;flex-direction:column;gap:16px}
+.denied-icon{font-size:3rem}
+.denied-msg{color:var(--muted);font-size:0.9rem}
+.denied-btn{padding:10px 24px;background:var(--orange);color:#fff;border:none;border-radius:8px;font-size:0.9rem;font-weight:700;cursor:pointer;font-family:inherit;text-decoration:none;display:inline-block}
 
 /* ── HEADER ── */
 .header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 16px;height:52px;display:flex;align-items:center;gap:12px;flex-shrink:0}
@@ -122,16 +118,10 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 <body>
 
 <!-- LOGIN -->
-<div class="login-wrap" id="login-wrap">
-  <div class="login-box">
-    <div class="login-logo">💾 Tunify</div>
-    <div class="login-sub">WebHard에 로그인하세요</div>
-    <input class="login-input" id="lpi-url"   type="url"      placeholder="Pi URL (https://xxx.ngrok-free.app)">
-    <input class="login-input" id="lpi-uid"   type="text"     placeholder="아이디" autocomplete="username">
-    <input class="login-input" id="lpi-pw"    type="password" placeholder="비밀번호" autocomplete="current-password">
-    <button class="login-btn" onclick="doLogin()">로그인</button>
-    <div class="login-err" id="login-err"></div>
-  </div>
+<div class="denied-wrap" id="denied-wrap" style="display:none">
+  <div class="denied-icon">🔒</div>
+  <div id="denied-msg" class="denied-msg">접근 권한이 없습니다</div>
+  <a href="/player.html" class="denied-btn">← Player로 돌아가기</a>
 </div>
 
 <!-- APP -->
@@ -215,62 +205,45 @@ function apiFetch(url, opts={}) {
 let PI_URL = '', UID = '', currentPath = '/', renameTarget = '', previewPath = '';
 
 // ── INIT ──────────────────────────────────────────────────────
-window.onload = () => {
-  PI_URL = localStorage.getItem('MPL_URL') || '';
-  UID    = localStorage.getItem('MPL_USER') || '';
-  const webhard = localStorage.getItem('MPL_WEBHARD') === '1';
-  if (!UID) { showLogin(); return; }
-  if (!webhard) {
-    // 권한 재확인
-    apiFetch(`${PI_URL}/api/me?uid=${UID}`).then(r=>r.json()).then(d=>{
-      if (!d.success || !d.webhard) { alert('웹하드 접근 권한이 없습니다.'); location.href='/player.html'; return; }
-      localStorage.setItem('MPL_WEBHARD','1');
-      startApp();
-    }).catch(()=>startApp());
-  } else {
-    startApp();
-  }
-};
-
-function showLogin() {
-  document.getElementById('login-wrap').style.display='flex';
+function showDenied(msg) {
+  document.getElementById('denied-msg').textContent = msg || '접근 권한이 없습니다';
+  document.getElementById('denied-wrap').style.display='flex';
   document.getElementById('app').style.display='none';
-  const saved = localStorage.getItem('MPL_URL');
-  if (saved) document.getElementById('lpi-url').value = saved;
-}
-
-async function doLogin() {
-  const url = document.getElementById('lpi-url').value.trim().replace(/\/$/,'');
-  const uid = document.getElementById('lpi-uid').value.trim();
-  const pw  = document.getElementById('lpi-pw').value;
-  const err = document.getElementById('login-err');
-  if (!url||!uid) { err.textContent='URL과 아이디를 입력하세요.'; return; }
-  try {
-    const r = await fetch(url+'/api/login', {
-      method:'POST',
-      headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'true'},
-      body: JSON.stringify({uid, password:pw})
-    });
-    const d = await r.json();
-    if (!d.success) { err.textContent = d.error||'로그인 실패'; return; }
-    if (!d.webhard && d.role !== 'admin') { err.textContent='웹하드 접근 권한이 없습니다.'; return; }
-    localStorage.setItem('MPL_URL', url);
-    localStorage.setItem('MPL_USER', d.uid);
-    localStorage.setItem('MPL_NICKNAME', d.nickname);
-    localStorage.setItem('MPL_ROLE', d.role);
-    localStorage.setItem('MPL_WEBHARD', d.webhard ? '1' : '0');
-    PI_URL = url; UID = d.uid;
-    startApp();
-  } catch(e) { err.textContent = '연결 실패: '+e.message; }
 }
 
 function startApp() {
-  document.getElementById('login-wrap').style.display='none';
+  document.getElementById('denied-wrap').style.display='none';
   document.getElementById('app').style.cssText='display:flex;flex-direction:column;height:100dvh;overflow:hidden';
   document.getElementById('hdr-user').textContent = localStorage.getItem('MPL_NICKNAME')||UID;
   loadDir('/');
   setupDrop();
 }
+
+window.onload = async () => {
+  PI_URL = (localStorage.getItem('MPL_URL') || '').replace(/\/$/,'');
+  UID    = localStorage.getItem('MPL_USER') || '';
+
+  // 로그인 안 된 경우 → player로
+  if (!UID || !PI_URL) { location.replace('/player.html'); return; }
+
+  // 권한 확인 (서버 응답 우선, 실패 시 캐시 사용)
+  let hasWebhard = localStorage.getItem('MPL_WEBHARD') === '1';
+  try {
+    const r = await apiFetch(`${PI_URL}/api/me?uid=${UID}`);
+    const d = await r.json();
+    if (!d.success) { location.replace('/player.html'); return; }
+    hasWebhard = !!d.webhard;
+    localStorage.setItem('MPL_WEBHARD', hasWebhard ? '1' : '0');
+    // 다른 세션 정보도 최신화
+    localStorage.setItem('MPL_NICKNAME', d.nickname);
+    localStorage.setItem('MPL_ROLE', d.role);
+  } catch(e) {
+    // 오프라인: 캐시된 값 사용
+  }
+
+  if (!hasWebhard) { showDenied('웹하드 접근 권한이 없습니다.\n관리자에게 문의하세요.'); return; }
+  startApp();
+};
 
 // ── NAVIGATION ────────────────────────────────────────────────
 async function loadDir(path) {
