@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tunify Board</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f0f13;color:#e8e8e8;font-family:'Segoe UI',sans-serif;min-height:100vh}
+.top-bar{display:flex;align-items:center;gap:12px;padding:14px 20px;background:#1a1a22;border-bottom:1px solid #2a2a35}
+.top-bar .logo{font-size:1.1rem;font-weight:700;color:#a78bfa;cursor:pointer}
+.top-bar .spacer{flex:1}
+.top-bar .user-info{font-size:.85rem;color:#888}
+.layout{display:flex;min-height:calc(100vh - 53px)}
+.sidebar{width:220px;background:#151519;border-right:1px solid #2a2a35;padding:12px;flex-shrink:0}
+.sidebar h3{font-size:.75rem;color:#666;text-transform:uppercase;letter-spacing:.08em;margin:8px 4px 6px}
+.cat-item{display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:.9rem;transition:.15s}
+.cat-item:hover{background:#1e1e2a}
+.cat-item.active{background:#2d2250;color:#a78bfa}
+.cat-item .del-cat{margin-left:auto;color:#f87171;font-size:.75rem;opacity:0;padding:2px 5px;border-radius:4px}
+.cat-item:hover .del-cat{opacity:1}
+.cat-item .perm-cat{margin-left:2px;color:#60a5fa;font-size:.75rem;opacity:0;padding:2px 5px;border-radius:4px}
+.cat-item:hover .perm-cat{opacity:1}
+.add-cat-btn{width:100%;margin-top:8px;padding:8px;background:#1e1e2a;border:1px dashed #3a3a50;border-radius:8px;color:#888;font-size:.85rem;cursor:pointer;transition:.15s}
+.add-cat-btn:hover{border-color:#a78bfa;color:#a78bfa}
+.main{flex:1;padding:20px;max-width:860px}
+.main-header{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+.main-header h2{font-size:1.2rem;font-weight:700}
+.main-header .write-btn{margin-left:auto;background:#7c3aed;color:#fff;border:none;padding:8px 18px;border-radius:8px;cursor:pointer;font-size:.9rem;transition:.15s}
+.main-header .write-btn:hover{background:#6d28d9}
+.post-card{background:#1a1a22;border:1px solid #2a2a35;border-radius:10px;padding:14px 18px;margin-bottom:10px;cursor:pointer;transition:.15s}
+.post-card:hover{border-color:#3a3a50;background:#1e1e2a}
+.post-title{font-size:1rem;font-weight:600;margin-bottom:4px}
+.post-meta{font-size:.78rem;color:#666}
+.post-meta span{margin-right:10px}
+.empty{color:#555;text-align:center;padding:60px 0}
+
+/* 게시글 상세 */
+.post-detail{background:#1a1a22;border:1px solid #2a2a35;border-radius:10px;padding:20px}
+.post-detail .pd-header{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.post-detail .pd-title{font-size:1.15rem;font-weight:700;flex:1}
+.pd-del{background:#7f1d1d;border:none;color:#fca5a5;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:.82rem}
+.pd-back{background:#1e1e2a;border:1px solid #3a3a50;color:#aaa;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:.82rem}
+.pd-meta{font-size:.8rem;color:#666;margin-bottom:14px}
+.pd-body{white-space:pre-wrap;line-height:1.65;margin-bottom:16px;font-size:.95rem}
+.pd-imgs{display:flex;flex-wrap:wrap;gap:8px}
+.pd-imgs img{max-width:280px;max-height:220px;border-radius:8px;object-fit:cover;cursor:pointer}
+
+/* 모달 */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
+.modal{background:#1a1a22;border:1px solid #3a3a50;border-radius:14px;padding:22px;width:100%;max-width:540px;max-height:90vh;overflow-y:auto}
+.modal h3{font-size:1.05rem;font-weight:700;margin-bottom:16px}
+.modal label{display:block;font-size:.82rem;color:#999;margin-bottom:4px;margin-top:12px}
+.modal input[type=text],.modal textarea{width:100%;background:#111118;border:1px solid #3a3a50;border-radius:7px;color:#e8e8e8;padding:9px 12px;font-size:.9rem;font-family:inherit}
+.modal textarea{resize:vertical;min-height:100px}
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+.btn-cancel{background:#1e1e2a;border:1px solid #3a3a50;color:#aaa;padding:8px 18px;border-radius:8px;cursor:pointer}
+.btn-ok{background:#7c3aed;border:none;color:#fff;padding:8px 18px;border-radius:8px;cursor:pointer}
+.btn-ok:hover{background:#6d28d9}
+.file-drop{border:2px dashed #3a3a50;border-radius:8px;padding:14px;text-align:center;color:#666;cursor:pointer;font-size:.85rem;margin-top:8px;transition:.15s}
+.file-drop:hover,.file-drop.dragover{border-color:#a78bfa;color:#a78bfa}
+
+/* 권한 설정 */
+.perm-user-list{max-height:220px;overflow-y:auto;border:1px solid #3a3a50;border-radius:8px;padding:8px;margin-top:8px}
+.perm-user-item{display:flex;align-items:center;gap:8px;padding:5px 4px;border-radius:6px}
+.perm-user-item:hover{background:#1e1e2a}
+.perm-user-item label{cursor:pointer;font-size:.88rem;flex:1}
+.perm-all-btn{margin-top:6px;background:#1e1e2a;border:1px solid #3a3a50;color:#aaa;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:.82rem}
+
+/* 이미지 확대 */
+.img-viewer{position:fixed;inset:0;background:rgba(0,0,0,.9);display:flex;align-items:center;justify-content:center;z-index:200;cursor:zoom-out}
+.img-viewer img{max-width:95vw;max-height:95vh;border-radius:8px;object-fit:contain}
+</style>
+</head>
+<body>
+<div class="top-bar">
+  <span class="logo" onclick="location.href='/player.html'">♪ Tunify</span>
+  <span style="color:#555;font-size:1.1rem">›</span>
+  <span style="font-size:1rem;font-weight:600">게시판</span>
+  <div class="spacer"></div>
+  <span class="user-info" id="user-info-text"></span>
+</div>
+
+<div class="layout">
+  <div class="sidebar">
+    <h3>카테고리</h3>
+    <div id="cat-list"></div>
+    <button class="add-cat-btn" id="add-cat-btn" style="display:none">+ 카테고리 추가</button>
+  </div>
+  <div class="main" id="main-area">
+    <div class="empty">카테고리를 선택하세요</div>
+  </div>
+</div>
+
+<!-- 카테고리 추가 모달 -->
+<div class="overlay" id="modal-addcat" style="display:none">
+  <div class="modal">
+    <h3>카테고리 추가</h3>
+    <label>이름</label>
+    <input type="text" id="new-cat-name" placeholder="카테고리 이름">
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal('modal-addcat')">취소</button>
+      <button class="btn-ok" onclick="submitAddCat()">추가</button>
+    </div>
+  </div>
+</div>
+
+<!-- 권한 설정 모달 -->
+<div class="overlay" id="modal-perm" style="display:none">
+  <div class="modal">
+    <h3 id="perm-modal-title">업로드 권한 설정</h3>
+    <div>
+      <button class="perm-all-btn" onclick="permSelectAll(true)">전체 선택</button>
+      <button class="perm-all-btn" onclick="permSelectAll(false)" style="margin-left:4px">전체 해제</button>
+    </div>
+    <div class="perm-user-list" id="perm-user-list"></div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal('modal-perm')">취소</button>
+      <button class="btn-ok" onclick="submitPerm()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 글 작성 모달 -->
+<div class="overlay" id="modal-write" style="display:none">
+  <div class="modal">
+    <h3>글 작성</h3>
+    <label>제목</label>
+    <input type="text" id="write-title" placeholder="제목">
+    <label>내용</label>
+    <textarea id="write-body" placeholder="내용을 입력하세요"></textarea>
+    <label>이미지 (선택)</label>
+    <div class="file-drop" id="write-drop" onclick="document.getElementById('write-imgs').click()">
+      클릭 또는 드래그하여 이미지 첨부
+    </div>
+    <input type="file" id="write-imgs" accept="image/*" multiple style="display:none">
+    <div id="write-img-preview" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal('modal-write')">취소</button>
+      <button class="btn-ok" onclick="submitWrite()">등록</button>
+    </div>
+  </div>
+</div>
+
+<!-- 이미지 확대 -->
+<div class="img-viewer" id="img-viewer" style="display:none" onclick="document.getElementById('img-viewer').style.display='none'">
+  <img id="img-viewer-img" src="">
+</div>
+
+<script>
+const PI_URL = localStorage.getItem('MPL_URL') || '';
+const MY_UID = localStorage.getItem('MPL_USER') || '';
+const MY_ROLE = localStorage.getItem('MPL_ROLE') || 'user';
+let MY_NICKNAME = localStorage.getItem('MPL_NICKNAME') || MY_UID;
+
+if (!PI_URL || !MY_UID) location.replace('/player.html');
+
+document.getElementById('user-info-text').textContent = MY_NICKNAME + (MY_ROLE === 'admin' ? ' (관리자)' : '');
+
+let cats = [];
+let allUsers = [];
+let activeCat = null;
+let permTargetCat = null;
+
+async function apiFetch(url, opts = {}) {
+  const headers = { 'ngrok-skip-browser-warning': 'true', ...(opts.headers || {}) };
+  const res = await fetch(PI_URL + url, { ...opts, headers });
+  return res.json();
+}
+
+async function init() {
+  await loadCats();
+  if (MY_ROLE === 'admin') {
+    document.getElementById('add-cat-btn').style.display = 'block';
+    const d = await apiFetch('/api/users?uid=' + MY_UID);
+    allUsers = (d.users || []).filter(u => u.role !== 'admin');
+  }
+}
+
+async function loadCats() {
+  const d = await apiFetch('/api/board/cats');
+  cats = d.cats || [];
+  renderCats();
+}
+
+function renderCats() {
+  const el = document.getElementById('cat-list');
+  el.innerHTML = '';
+  cats.forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'cat-item' + (activeCat?.id === c.id ? ' active' : '');
+    div.innerHTML = `<span>${c.name}</span>`;
+    if (MY_ROLE === 'admin') {
+      const pb = document.createElement('span');
+      pb.className = 'perm-cat'; pb.textContent = '🔑';
+      pb.onclick = e => { e.stopPropagation(); openPermModal(c); };
+      div.appendChild(pb);
+      const db = document.createElement('span');
+      db.className = 'del-cat'; db.textContent = '✕';
+      db.onclick = e => { e.stopPropagation(); deleteCat(c.id); };
+      div.appendChild(db);
+    }
+    div.onclick = () => selectCat(c);
+    el.appendChild(div);
+  });
+}
+
+async function selectCat(c) {
+  activeCat = c;
+  renderCats();
+  await loadPosts(c.id);
+}
+
+async function loadPosts(cid) {
+  const d = await apiFetch('/api/board/' + cid + '/posts');
+  const posts = d.posts || [];
+  const main = document.getElementById('main-area');
+
+  const canWrite = MY_ROLE === 'admin' || (activeCat?.allowed || []).includes('*') || (activeCat?.allowed || []).includes(MY_UID);
+
+  main.innerHTML = `
+    <div class="main-header">
+      <h2>${activeCat?.name || ''}</h2>
+      ${canWrite ? '<button class="write-btn" onclick="openWriteModal()">✏️ 글쓰기</button>' : ''}
+    </div>
+    ${posts.length === 0 ? '<div class="empty">게시글이 없습니다</div>' : ''}
+  `;
+  posts.forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'post-card';
+    card.innerHTML = `
+      <div class="post-title">${esc(p.title)}</div>
+      <div class="post-meta">
+        <span>${esc(p.nickname)}</span>
+        <span>${new Date(parseInt(p.created)).toLocaleString('ko')}</span>
+        ${p.images?.length ? `<span>🖼 ${p.images.length}</span>` : ''}
+      </div>`;
+    card.onclick = () => showPost(p);
+    main.appendChild(card);
+  });
+}
+
+function showPost(p) {
+  const canDel = MY_ROLE === 'admin' || p.uid === MY_UID;
+  const main = document.getElementById('main-area');
+  main.innerHTML = `
+    <div class="post-detail">
+      <div class="pd-header">
+        <button class="pd-back" onclick="selectCat(activeCat)">← 목록</button>
+        <div class="pd-title">${esc(p.title)}</div>
+        ${canDel ? `<button class="pd-del" onclick="deletePost('${p.id}')">삭제</button>` : ''}
+      </div>
+      <div class="pd-meta">${esc(p.nickname)} · ${new Date(parseInt(p.created)).toLocaleString('ko')}</div>
+      <div class="pd-body">${esc(p.body)}</div>
+      ${p.images?.length ? `<div class="pd-imgs">${p.images.map(img => `<img src="${PI_URL}${img}" onclick="viewImg(this.src)">`).join('')}</div>` : ''}
+    </div>`;
+}
+
+async function deletePost(pid) {
+  if (!confirm('삭제하시겠습니까?')) return;
+  await apiFetch('/api/board/' + activeCat.id + '/posts/' + pid + '?uid=' + MY_UID, { method: 'DELETE' });
+  selectCat(activeCat);
+}
+
+function openWriteModal() {
+  document.getElementById('write-title').value = '';
+  document.getElementById('write-body').value = '';
+  document.getElementById('write-imgs').value = '';
+  document.getElementById('write-img-preview').innerHTML = '';
+  document.getElementById('modal-write').style.display = 'flex';
+}
+
+document.getElementById('write-imgs').onchange = function() {
+  const prev = document.getElementById('write-img-preview');
+  prev.innerHTML = '';
+  [...this.files].forEach(f => {
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(f);
+    img.style.cssText = 'width:80px;height:60px;object-fit:cover;border-radius:6px;';
+    prev.appendChild(img);
+  });
+};
+
+const drop = document.getElementById('write-drop');
+drop.ondragover = e => { e.preventDefault(); drop.classList.add('dragover'); };
+drop.ondragleave = () => drop.classList.remove('dragover');
+drop.ondrop = e => {
+  e.preventDefault(); drop.classList.remove('dragover');
+  const dt = new DataTransfer();
+  [...e.dataTransfer.files].forEach(f => dt.items.add(f));
+  document.getElementById('write-imgs').files = dt.files;
+  document.getElementById('write-imgs').onchange();
+};
+
+async function submitWrite() {
+  const title = document.getElementById('write-title').value.trim();
+  const body = document.getElementById('write-body').value.trim();
+  if (!title) return alert('제목을 입력하세요');
+  const fd = new FormData();
+  fd.append('uid', MY_UID); fd.append('title', title); fd.append('body', body);
+  [...document.getElementById('write-imgs').files].forEach(f => fd.append('images', f));
+  const d = await fetch(PI_URL + '/api/board/' + activeCat.id + '/posts', {
+    method: 'POST', headers: { 'ngrok-skip-browser-warning': 'true' }, body: fd
+  }).then(r => r.json());
+  if (d.success) { closeModal('modal-write'); selectCat(activeCat); }
+  else alert(d.error || '오류');
+}
+
+// 카테고리 관리
+document.getElementById('add-cat-btn').onclick = () => {
+  document.getElementById('new-cat-name').value = '';
+  document.getElementById('modal-addcat').style.display = 'flex';
+};
+
+async function submitAddCat() {
+  const name = document.getElementById('new-cat-name').value.trim();
+  if (!name) return;
+  await apiFetch('/api/board/cats', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ uid: MY_UID, name }) });
+  closeModal('modal-addcat');
+  loadCats();
+}
+
+async function deleteCat(cid) {
+  if (!confirm('카테고리와 모든 게시글이 삭제됩니다. 계속하시겠습니까?')) return;
+  await apiFetch('/api/board/cats/' + cid + '?uid=' + MY_UID, { method: 'DELETE' });
+  if (activeCat?.id === cid) { activeCat = null; document.getElementById('main-area').innerHTML = '<div class="empty">카테고리를 선택하세요</div>'; }
+  loadCats();
+}
+
+function openPermModal(c) {
+  permTargetCat = c;
+  document.getElementById('perm-modal-title').textContent = `[${c.name}] 업로드 권한`;
+  const list = document.getElementById('perm-user-list');
+  list.innerHTML = '';
+  allUsers.forEach(u => {
+    const checked = (c.allowed || []).includes('*') || (c.allowed || []).includes(u.uid);
+    const row = document.createElement('div');
+    row.className = 'perm-user-item';
+    row.innerHTML = `<input type="checkbox" id="pu_${u.uid}" value="${u.uid}" ${checked ? 'checked' : ''}><label for="pu_${u.uid}">${esc(u.nickname)} (${u.uid})</label>`;
+    list.appendChild(row);
+  });
+  document.getElementById('modal-perm').style.display = 'flex';
+}
+
+function permSelectAll(v) {
+  document.querySelectorAll('#perm-user-list input[type=checkbox]').forEach(cb => cb.checked = v);
+}
+
+async function submitPerm() {
+  const cbs = document.querySelectorAll('#perm-user-list input[type=checkbox]');
+  const total = allUsers.length;
+  const checked = [...cbs].filter(c => c.checked).map(c => c.value);
+  const allowed = checked.length === total ? ['*'] : checked;
+  await apiFetch('/api/board/cats/' + permTargetCat.id + '/perms', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ uid: MY_UID, allowed })
+  });
+  closeModal('modal-perm');
+  await loadCats();
+  if (activeCat?.id === permTargetCat.id) activeCat = cats.find(c => c.id === permTargetCat.id);
+}
+
+function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+function viewImg(src) { document.getElementById('img-viewer-img').src = src; document.getElementById('img-viewer').style.display = 'flex'; }
+function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+init();
+</script>
+</body>
+</html>

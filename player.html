@@ -1368,11 +1368,13 @@
                         const img = el.querySelector('img.track-thumb');
                         const wrap = el.querySelector('.track-thumb-wrap');
                         if (!img || !wrap) return;
+                        wrap.classList.remove('no-cover');
+                        wrap.onclick = null;
+                        // onerror가 no-cover를 다시 붙이지 못하도록 교체
+                        img.onerror = null;
+                        img.onload = () => { img.style.opacity = '1'; };
                         img.src = newThumb;
                         img.style.opacity = '1';
-                        wrap.classList.remove('no-cover');
-                        // 커버 있으면 클릭 이벤트 제거
-                        wrap.onclick = null;
                     });
                     closeCoverModal();
                 }

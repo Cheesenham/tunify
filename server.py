@@ -904,6 +904,154 @@ def internal_error(e):
 def too_large(e):
     return jsonify({'success': False, 'msg': '파일이 너무 큽니다'}), 413
 
+# ─── 공지/게시판 ──────────────────────────────────────────────
+NOTICES_FILE = os.path.join(BASE_DIR, 'db', 'notices.json')
+BOARD_CATS_FILE = os.path.join(BASE_DIR, 'db', 'board_cats.json')
+NOTICE_IMG_DIR = os.path.join(STORAGE_DIR, 'notices')
+BOARD_IMG_DIR = os.path.join(STORAGE_DIR, 'board')
+os.makedirs(NOTICE_IMG_DIR, exist_ok=True)
+os.makedirs(BOARD_IMG_DIR, exist_ok=True)
+
+def _load_json(path, default):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    if not os.path.exists(path):
+        return default
+    with open(path, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+def _save_json(path, data):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+def _is_admin(uid):
+    return _load_users().get(uid, {}).get('role') == 'admin'
+
+@app.route('/api/notice', methods=['GET'])
+def notice_get():
+    notices = _load_json(NOTICES_FILE, [])
+    active = [n for n in notices if n.get('active', True)]
+    return jsonify({'success': True, 'notices': active})
+
+@app.route('/api/notice', methods=['POST'])
+def notice_create():
+    uid = request.form.get('uid', '')
+    if not _is_admin(uid):
+        return jsonify({'error': '권한 없음'}), 403
+    nid = str(int(time.time() * 1000))
+    img_path = ''
+    if 'image' in request.files:
+        f = request.files['image']
+        from werkzeug.utils import secure_filename as _sfn
+        fn = _sfn(f.filename)
+        ext = fn.rsplit('.', 1)[-1] if '.' in fn else 'jpg'
+        fname = f'notice_{nid}.{ext}'
+        f.save(os.path.join(NOTICE_IMG_DIR, fname))
+        img_path = f'/api/notice/image/{fname}'
+    notices = _load_json(NOTICES_FILE, [])
+    notices.append({'id': nid, 'title': request.form.get('title', ''), 'body': request.form.get('body', ''), 'image': img_path, 'active': True, 'created': nid})
+    _save_json(NOTICES_FILE, notices)
+    return jsonify({'success': True, 'id': nid})
+
+@app.route('/api/notice/<nid>', methods=['DELETE'])
+def notice_delete(nid):
+    if not _is_admin(request.args.get('uid', '')):
+        return jsonify({'error': '권한 없음'}), 403
+    notices = _load_json(NOTICES_FILE, [])
+    _save_json(NOTICES_FILE, [n for n in notices if n['id'] != nid])
+    return jsonify({'success': True})
+
+@app.route('/api/notice/image/<fname>')
+def notice_image(fname):
+    return send_from_directory(NOTICE_IMG_DIR, fname)
+
+@app.route('/api/board/cats', methods=['GET'])
+def board_cats_get():
+    return jsonify({'success': True, 'cats': _load_json(BOARD_CATS_FILE, [])})
+
+@app.route('/api/board/cats', methods=['POST'])
+def board_cats_create():
+    data = request.json or {}
+    if not _is_admin(data.get('uid', '')):
+        return jsonify({'error': '권한 없음'}), 403
+    cid = str(int(time.time() * 1000))
+    cats = _load_json(BOARD_CATS_FILE, [])
+    cats.append({'id': cid, 'name': data.get('name', '새 카테고리'), 'allowed': ['*']})
+    _save_json(BOARD_CATS_FILE, cats)
+    return jsonify({'success': True, 'id': cid})
+
+@app.route('/api/board/cats/<cid>', methods=['DELETE'])
+def board_cats_delete(cid):
+    if not _is_admin(request.args.get('uid', '')):
+        return jsonify({'error': '권한 없음'}), 403
+    cats = _load_json(BOARD_CATS_FILE, [])
+    _save_json(BOARD_CATS_FILE, [c for c in cats if c['id'] != cid])
+    post_file = os.path.join(BASE_DIR, 'db', f'board_{cid}.json')
+    if os.path.exists(post_file):
+        os.remove(post_file)
+    return jsonify({'success': True})
+
+@app.route('/api/board/cats/<cid>/perms', methods=['POST'])
+def board_cats_perms(cid):
+    data = request.json or {}
+    if not _is_admin(data.get('uid', '')):
+        return jsonify({'error': '권한 없음'}), 403
+    cats = _load_json(BOARD_CATS_FILE, [])
+    for c in cats:
+        if c['id'] == cid:
+            c['allowed'] = data.get('allowed', ['*'])
+    _save_json(BOARD_CATS_FILE, cats)
+    return jsonify({'success': True})
+
+@app.route('/api/board/<cid>/posts', methods=['GET'])
+def board_posts_get(cid):
+    posts_file = os.path.join(BASE_DIR, 'db', f'board_{cid}.json')
+    return jsonify({'success': True, 'posts': _load_json(posts_file, [])})
+
+@app.route('/api/board/<cid>/posts', methods=['POST'])
+def board_posts_create(cid):
+    uid = request.form.get('uid', '')
+    cats = _load_json(BOARD_CATS_FILE, [])
+    cat = next((c for c in cats if c['id'] == cid), None)
+    if not cat:
+        return jsonify({'error': '카테고리 없음'}), 404
+    allowed = cat.get('allowed', ['*'])
+    if '*' not in allowed and uid not in allowed and not _is_admin(uid):
+        return jsonify({'error': '권한 없음'}), 403
+    users = _load_users()
+    nickname = users.get(uid, {}).get('nickname', uid)
+    pid = str(int(time.time() * 1000))
+    imgs = []
+    for f in request.files.getlist('images'):
+        from werkzeug.utils import secure_filename as _sfn
+        fn = _sfn(f.filename)
+        ext = fn.rsplit('.', 1)[-1] if '.' in fn else 'jpg'
+        fname = f'board_{pid}_{len(imgs)}.{ext}'
+        f.save(os.path.join(BOARD_IMG_DIR, fname))
+        imgs.append(f'/api/board/image/{fname}')
+    posts_file = os.path.join(BASE_DIR, 'db', f'board_{cid}.json')
+    posts = _load_json(posts_file, [])
+    posts.insert(0, {'id': pid, 'uid': uid, 'nickname': nickname, 'title': request.form.get('title', ''), 'body': request.form.get('body', ''), 'images': imgs, 'created': pid})
+    _save_json(posts_file, posts)
+    return jsonify({'success': True, 'id': pid})
+
+@app.route('/api/board/<cid>/posts/<pid>', methods=['DELETE'])
+def board_posts_delete(cid, pid):
+    uid = request.args.get('uid', '')
+    posts_file = os.path.join(BASE_DIR, 'db', f'board_{cid}.json')
+    posts = _load_json(posts_file, [])
+    post = next((p for p in posts if p['id'] == pid), None)
+    if not post:
+        return jsonify({'error': '없음'}), 404
+    if post['uid'] != uid and not _is_admin(uid):
+        return jsonify({'error': '권한 없음'}), 403
+    _save_json(posts_file, [p for p in posts if p['id'] != pid])
+    return jsonify({'success': True})
+
+@app.route('/api/board/image/<fname>')
+def board_image(fname):
+    return send_from_directory(BOARD_IMG_DIR, fname)
+
 if __name__ == '__main__':
     print("🚀 MPL Server 시작 (Port: 5000)")
     app.run(host='0.0.0.0', port=5000, debug=False)
