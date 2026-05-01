@@ -135,9 +135,11 @@ body{background:#0f0f13;color:#e8e8e8;font-family:'Segoe UI',sans-serif;min-heig
     <button onclick="toggleSubs(true)" style="background:#1e1e2a;border:1px solid #333;color:#aaa;padding:4px 10px;border-radius:5px;cursor:pointer;font-size:.78rem;">켜기</button>
     <button onclick="toggleSubs(false)" style="background:#1e1e2a;border:1px solid #333;color:#aaa;padding:4px 10px;border-radius:5px;cursor:pointer;font-size:.78rem;">끄기</button>
     <label style="align-self:center;margin-left:8px;font-size:.78rem;color:#888">위치:</label>
-    <button onclick="moveSubLine(-10)" style="background:#1e1e2a;border:1px solid #333;color:#aaa;padding:4px 8px;border-radius:5px;cursor:pointer;font-size:.8rem;" title="위로">▲</button>
-    <span id="sub-pos-label" style="font-size:.75rem;color:#666;align-self:center;min-width:28px;text-align:center">85%</span>
-    <button onclick="moveSubLine(10)" style="background:#1e1e2a;border:1px solid #333;color:#aaa;padding:4px 8px;border-radius:5px;cursor:pointer;font-size:.8rem;" title="아래로">▼</button>
+    <button onclick="moveSubLine(-10)" style="background:#1e1e2a;border:1px solid #333;color:#aaa;padding:4px 8px;border-radius:5px;cursor:pointer;font-size:.8rem;">▲</button>
+    <button onclick="moveSubLine(10)" style="background:#1e1e2a;border:1px solid #333;color:#aaa;padding:4px 8px;border-radius:5px;cursor:pointer;font-size:.8rem;">▼</button>
+    <button onclick="moveSubPos(-10)" style="background:#1e1e2a;border:1px solid #333;color:#aaa;padding:4px 8px;border-radius:5px;cursor:pointer;font-size:.8rem;">◀</button>
+    <button onclick="moveSubPos(10)" style="background:#1e1e2a;border:1px solid #333;color:#aaa;padding:4px 8px;border-radius:5px;cursor:pointer;font-size:.8rem;">▶</button>
+    <span id="sub-pos-label" style="font-size:.75rem;color:#666;align-self:center;min-width:60px;text-align:center">↕85% ↔50%</span>
   </div>
 </div>
 
@@ -252,17 +254,28 @@ function toggleSubs(on) {
   if (pv.textTracks[0]) pv.textTracks[0].mode = on ? 'showing' : 'hidden';
 }
 
-let subLine = 85;
-function moveSubLine(delta) {
-  subLine = Math.max(0, Math.min(100, subLine + delta));
-  document.getElementById('sub-pos-label').textContent = subLine + '%';
-  const pv = document.getElementById('player-video');
-  const track = pv.textTracks[0];
+let subLine = 85, subPos = 50;
+function _updateSubLabel() {
+  document.getElementById('sub-pos-label').textContent = `↕${subLine}% ↔${subPos}%`;
+}
+function _applySubPos() {
+  const track = document.getElementById('player-video').textTracks[0];
   if (!track) return;
   for (let i = 0; i < track.cues.length; i++) {
     track.cues[i].line = subLine;
     track.cues[i].snapToLines = false;
+    track.cues[i].position = subPos;
+    track.cues[i].positionAlign = 'center';
+    track.cues[i].align = 'center';
   }
+}
+function moveSubLine(delta) {
+  subLine = Math.max(0, Math.min(100, subLine + delta));
+  _updateSubLabel(); _applySubPos();
+}
+function moveSubPos(delta) {
+  subPos = Math.max(0, Math.min(100, subPos + delta));
+  _updateSubLabel(); _applySubPos();
 }
 
 async function deleteVideo(vid_id) {
