@@ -190,39 +190,49 @@ function renderList() {
     </div>`).join('') + '</div>';
 }
 
-function playVideo(vid_id) {
+let _subBlobUrl = null;
+
+async function playVideo(vid_id) {
   const v = videos.find(x => x.id === vid_id);
   if (!v) return;
   const pv = document.getElementById('player-video');
   document.getElementById('player-title').textContent = v.title;
 
-  // 기존 track 제거 후 새로 추가해야 브라우저가 재로드함
   pv.pause();
   pv.removeAttribute('src');
   [...pv.querySelectorAll('track')].forEach(t => t.remove());
+  if (_subBlobUrl) { URL.revokeObjectURL(_subBlobUrl); _subBlobUrl = null; }
+
+  pv.src = PI_URL + `/api/video/serve/${vid_id}`;
 
   if (v.sub_file) {
-    const track = document.createElement('track');
-    track.kind = 'subtitles';
-    track.label = '자막';
-    track.srclang = 'ko';
-    track.src = PI_URL + `/api/video/serve/${vid_id}?sub=1`;
-    track.default = true;
-    pv.appendChild(track);
+    // 자막을 fetch로 가져와 Blob URL 생성 (cross-origin track 문제 우회)
+    try {
+      const res = await fetch(PI_URL + `/api/video/serve/${vid_id}?sub=1`,
+        { headers: { 'ngrok-skip-browser-warning': 'true' } });
+      const text = await res.text();
+      const blob = new Blob([text], { type: 'text/vtt' });
+      _subBlobUrl = URL.createObjectURL(blob);
+      const track = document.createElement('track');
+      track.kind = 'subtitles';
+      track.label = '자막';
+      track.srclang = 'ko';
+      track.src = _subBlobUrl;
+      pv.appendChild(track);
+      pv.load();
+      pv.addEventListener('loadedmetadata', function onMeta() {
+        pv.removeEventListener('loadedmetadata', onMeta);
+        if (pv.textTracks[0]) pv.textTracks[0].mode = 'showing';
+      });
+    } catch(e) {
+      pv.load();
+    }
     document.getElementById('player-subs').style.display = 'flex';
   } else {
+    pv.load();
     document.getElementById('player-subs').style.display = 'none';
   }
 
-  pv.src = PI_URL + `/api/video/serve/${vid_id}`;
-  pv.load();
-  // track이 로드된 후 mode를 showing으로 설정
-  if (v.sub_file) {
-    pv.addEventListener('loadedmetadata', function onMeta() {
-      pv.removeEventListener('loadedmetadata', onMeta);
-      if (pv.textTracks[0]) pv.textTracks[0].mode = 'showing';
-    });
-  }
   document.getElementById('player-overlay').classList.add('open');
   pv.play().catch(()=>{});
 }
