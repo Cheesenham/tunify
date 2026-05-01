@@ -288,7 +288,8 @@
             .topnav .logo { font-size: 1rem; }
             .content { padding: 16px; padding-bottom: calc(16px + var(--player-h) + 56px); }
             .content-title { font-size: 1.1rem; margin-bottom: 14px; }
-            .now-playing { width: auto; flex: 0 0 auto; max-width: 38%; }
+            .now-playing { width: auto; flex: 0 0 auto; max-width: 38%; min-width: 0; overflow: hidden; }
+            .now-playing > div { min-width: 0; overflow: hidden; }
             .player-center { min-width: 0; flex: 1; }
             .player-right { width: auto; flex-shrink: 0; gap: 4px; }
             .vol-wrap { display: none; }
