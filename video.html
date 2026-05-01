@@ -161,7 +161,7 @@ let videos = [], activeView = 'all';
 let activeJobs = {};   // job_id → intervalId
 
 async function loadVideos() {
-  const d = await api('/api/video/list');
+  const d = await api('/api/video/list?uid=' + UID);
   videos = d.videos || [];
   renderList();
 }

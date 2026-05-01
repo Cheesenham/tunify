@@ -1072,7 +1072,13 @@ def _save_vdb(db):
 
 @app.route('/api/video/list')
 def video_list():
-    return jsonify({'success': True, 'videos': _load_vdb()})
+    uid = request.args.get('uid', '')
+    db = _load_vdb()
+    if uid:
+        db = [v for v in db if v.get('uid') == uid
+              or uid in v.get('allowed_uids', [])
+              or _load_users().get(uid, {}).get('role') == 'admin']
+    return jsonify({'success': True, 'videos': db})
 
 @app.route('/api/video/serve/<vid_id>')
 def video_serve(vid_id):
@@ -1146,7 +1152,18 @@ def video_download():
             uploader = _v(1)
             yt_id = _v(2)
             thumbnail_url = f"https://img.youtube.com/vi/{yt_id}/mqdefault.jpg" if yt_id else ''
-            _video_jobs[job_id].update({'title': title, 'progress': 10, 'status': '다운로드 중...'})
+            _video_jobs[job_id].update({'title': title, 'progress': 10, 'status': '확인 중...'})
+
+            # 이미 같은 URL이 존재하면 재사용
+            db = _load_vdb()
+            existing = next((v for v in db if v.get('source_url') == url
+                             and os.path.exists(os.path.join(VIDEO_DIR, v['file']))), None)
+            if existing:
+                if uid not in existing.get('allowed_uids', [existing['uid']]):
+                    existing.setdefault('allowed_uids', [existing['uid']]).append(uid)
+                    _save_vdb(db)
+                _video_jobs[job_id].update({'progress': 100, 'status': '완료 (기존 파일 사용) ✓', 'vid_id': existing['id']})
+                return
 
             # 화질 포맷 설정
             if quality == 'best':
