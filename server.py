@@ -1052,6 +1052,72 @@ def board_posts_delete(cid, pid):
 def board_image(fname):
     return send_from_directory(BOARD_IMG_DIR, fname)
 
+# ─── 노래 공유 ────────────────────────────────────────────────
+import random, string
+share_codes = {}  # code -> {uid, file_id, expires}
+
+@app.route('/api/share/create', methods=['POST'])
+def share_create():
+    data = request.json or {}
+    uid = data.get('uid', '')
+    file_id = data.get('file_id', '')
+    if not uid or not file_id:
+        return jsonify({'success': False, 'error': 'missing params'}), 400
+    db_path = os.path.join(STORAGE_DIR, uid, 'db.json')
+    if not os.path.exists(db_path):
+        return jsonify({'success': False, 'error': 'not found'}), 404
+    with open(db_path, 'r', encoding='utf-8') as f:
+        db = json.load(f)
+    if not any(item.get('id') == file_id for item in db):
+        return jsonify({'success': False, 'error': 'file not found'}), 404
+    # 만료된 코드 정리
+    now = time.time()
+    expired = [c for c, v in share_codes.items() if v['expires'] < now]
+    for c in expired:
+        del share_codes[c]
+    code = ''.join(random.choices(string.digits, k=6))
+    while code in share_codes:
+        code = ''.join(random.choices(string.digits, k=6))
+    share_codes[code] = {'uid': uid, 'file_id': file_id, 'expires': now + 300}
+    return jsonify({'success': True, 'code': code})
+
+@app.route('/api/share/claim', methods=['POST'])
+def share_claim():
+    data = request.json or {}
+    receiver_uid = data.get('uid', '')
+    code = data.get('code', '').strip()
+    if not receiver_uid or not code:
+        return jsonify({'success': False, 'error': 'missing params'}), 400
+    entry = share_codes.get(code)
+    if not entry or entry['expires'] < time.time():
+        share_codes.pop(code, None)
+        return jsonify({'success': False, 'error': '코드가 만료되었거나 올바르지 않습니다.'}), 404
+    sender_uid = entry['uid']
+    file_id = entry['file_id']
+    sender_db = os.path.join(STORAGE_DIR, sender_uid, 'db.json')
+    with open(sender_db, 'r', encoding='utf-8') as f:
+        sender_files = json.load(f)
+    orig = next((i for i in sender_files if i.get('id') == file_id), None)
+    if not orig:
+        return jsonify({'success': False, 'error': 'file not found'}), 404
+    receiver_db_path = os.path.join(STORAGE_DIR, receiver_uid, 'db.json')
+    os.makedirs(os.path.join(STORAGE_DIR, receiver_uid), exist_ok=True)
+    receiver_files = []
+    if os.path.exists(receiver_db_path):
+        with open(receiver_db_path, 'r', encoding='utf-8') as f:
+            receiver_files = json.load(f)
+    # 이미 공유된 경우 스킵
+    if any(i.get('id') == file_id or (i.get('file_uid') == sender_uid and i.get('file_id') == file_id) for i in receiver_files):
+        share_codes.pop(code, None)
+        return jsonify({'success': True, 'msg': '이미 라이브러리에 있습니다.'})
+    # 공유 레코드 추가 (실제 파일은 sender 디렉토리 참조)
+    shared_entry = {**orig, 'file_uid': sender_uid, 'shared_from': sender_uid}
+    receiver_files.append(shared_entry)
+    with open(receiver_db_path, 'w', encoding='utf-8') as f:
+        json.dump(receiver_files, f, ensure_ascii=False, indent=2)
+    share_codes.pop(code, None)
+    return jsonify({'success': True, 'msg': f'"{orig.get("filename","노래")}" 이(가) 라이브러리에 추가되었습니다.'})
+
 if __name__ == '__main__':
     print("🚀 MPL Server 시작 (Port: 5000)")
     app.run(host='0.0.0.0', port=5000, debug=False)

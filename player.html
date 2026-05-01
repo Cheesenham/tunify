@@ -544,6 +544,9 @@
             <div class="nav-item" onclick="window.location.href='/board.html'">
                 <span>📋</span> 게시판
             </div>
+            <div class="nav-item" onclick="openReceiveModal()">
+                <span>📥</span> 노래 수신
+            </div>
             <div class="nav-item webhard-only" id="nav-webhard" onclick="window.location.href='/webhard.html'" style="display:none;">
                 <span>💾</span> WebHard
             </div>
@@ -556,7 +559,11 @@
         </aside>
 
         <main class="content">
-            <div class="content-title" id="view-title">All Tracks</div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+                <div class="content-title" id="view-title" style="margin-bottom:0;flex:1;">All Tracks</div>
+                <input type="text" id="search-bar" placeholder="🔍 검색..." oninput="onSearch()"
+                    style="background:#1a1a1a;border:1px solid #333;border-radius:20px;color:#eee;padding:7px 14px;font-size:.82rem;width:180px;font-family:inherit;outline:none;">
+            </div>
             <div id="track-list"></div>
         </main>
     </div>
@@ -664,6 +671,33 @@
         <div class="ctx-menu-item" onclick="ctxPlayNext()">▶ Play Next에 추가</div>
         <div class="ctx-menu-item" onclick="ctxPlayNow()">▶ 지금 재생</div>
         <div class="ctx-menu-item" onclick="ctxOpenCover()">🖼 커버 교체</div>
+        <div class="ctx-menu-item" onclick="ctxShareSong()">📤 노래 전송</div>
+    </div>
+
+    <!-- Share Modal (sender) -->
+    <div class="overlay" id="modal-share" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:600;align-items:center;justify-content:center;">
+      <div style="background:#1a1a22;border:1px solid #3a3a50;border-radius:14px;padding:24px;width:90%;max-width:340px;text-align:center;">
+        <div style="font-size:1rem;font-weight:700;margin-bottom:8px;">📤 노래 전송</div>
+        <div id="share-song-name" style="font-size:.85rem;color:#aaa;margin-bottom:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+        <div style="font-size:2.5rem;font-weight:700;letter-spacing:.25em;color:#a78bfa;margin-bottom:8px;" id="share-code-display">------</div>
+        <div style="font-size:.78rem;color:#666;margin-bottom:20px;" id="share-countdown"></div>
+        <button onclick="document.getElementById('modal-share').style.display='none'" style="background:#1e1e2a;border:1px solid #3a3a50;color:#aaa;padding:8px 24px;border-radius:8px;cursor:pointer;">닫기</button>
+      </div>
+    </div>
+
+    <!-- Receive Modal -->
+    <div class="overlay" id="modal-receive" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:600;align-items:center;justify-content:center;">
+      <div style="background:#1a1a22;border:1px solid #3a3a50;border-radius:14px;padding:24px;width:90%;max-width:340px;">
+        <div style="font-size:1rem;font-weight:700;margin-bottom:16px;">📥 노래 수신</div>
+        <input type="text" id="receive-code-input" placeholder="6자리 코드 입력" maxlength="6"
+          style="width:100%;background:#111118;border:1px solid #3a3a50;border-radius:7px;color:#e8e8e8;padding:12px;font-size:1.4rem;letter-spacing:.3em;text-align:center;font-family:inherit;"
+          oninput="this.value=this.value.replace(/\D/g,'')">
+        <div id="receive-msg" style="min-height:20px;font-size:.82rem;margin-top:8px;text-align:center;"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">
+          <button onclick="document.getElementById('modal-receive').style.display='none'" style="background:#1e1e2a;border:1px solid #3a3a50;color:#aaa;padding:8px 18px;border-radius:8px;cursor:pointer;">취소</button>
+          <button onclick="claimShare()" style="background:#7c3aed;border:none;color:#fff;padding:8px 18px;border-radius:8px;cursor:pointer;">수신</button>
+        </div>
+      </div>
     </div>
 
     <!-- Cover Modal -->
@@ -1155,7 +1189,7 @@
             }
 
             if (activeView === 'all') {
-                trackList = allFiles.filter(f => !f.playlist_id);
+                trackList = allFiles.filter(f => !f.playlist_id && (!searchQ || (f.filename||'').toLowerCase().includes(searchQ) || (f.artist||'').toLowerCase().includes(searchQ)));
                 if (!trackList.length) {
                     container.innerHTML = '<div class="empty"><div class="icon">🎵</div>No tracks yet.<br>Use Maker to add music!</div>';
                     return;
@@ -1526,6 +1560,66 @@
             btn.disabled = false; btn.innerText = '적용';
         }
         function ctxOpenCover() { if (ctxTrack) { openCoverModal(ctxTrack); hideCtxMenu(); } }
+
+        // --- 검색 ---
+        let searchQ = '';
+        function onSearch() {
+            searchQ = document.getElementById('search-bar').value.trim().toLowerCase();
+            renderView(true);
+        }
+
+        // --- 노래 공유 ---
+        let shareCountdownTimer = null;
+        function ctxShareSong() {
+            if (!ctxTrack) return;
+            hideCtxMenu();
+            apiFetch(`${PI_URL}/api/share/create`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ uid: UID, file_id: ctxTrack.id })
+            }).then(r => r.json()).then(d => {
+                if (!d.success) return alert(d.error || '오류');
+                document.getElementById('share-song-name').textContent = ctxTrack.filename;
+                document.getElementById('share-code-display').textContent = d.code;
+                document.getElementById('modal-share').style.display = 'flex';
+                clearInterval(shareCountdownTimer);
+                let secs = 300;
+                const cd = document.getElementById('share-countdown');
+                const tick = () => { cd.textContent = `${Math.floor(secs/60)}:${String(secs%60).padStart(2,'0')} 남음`; if(--secs < 0){ clearInterval(shareCountdownTimer); cd.textContent = '만료됨'; document.getElementById('share-code-display').textContent = '------'; } };
+                tick();
+                shareCountdownTimer = setInterval(tick, 1000);
+            }).catch(() => alert('네트워크 오류'));
+        }
+
+        function openReceiveModal() {
+            document.getElementById('receive-code-input').value = '';
+            document.getElementById('receive-msg').textContent = '';
+            document.getElementById('receive-msg').style.color = '#aaa';
+            document.getElementById('modal-receive').style.display = 'flex';
+        }
+
+        async function claimShare() {
+            const code = document.getElementById('receive-code-input').value.trim();
+            if (code.length !== 6) { document.getElementById('receive-msg').textContent = '6자리 코드를 입력하세요.'; return; }
+            const msg = document.getElementById('receive-msg');
+            msg.textContent = '처리 중...'; msg.style.color = '#aaa';
+            try {
+                const r = await apiFetch(`${PI_URL}/api/share/claim`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ uid: UID, code })
+                });
+                const d = await r.json();
+                if (d.success) {
+                    msg.style.color = '#4ade80';
+                    msg.textContent = d.msg || '수신 완료!';
+                    setTimeout(() => { document.getElementById('modal-receive').style.display = 'none'; renderView(); }, 1500);
+                } else {
+                    msg.style.color = '#f87171';
+                    msg.textContent = d.error || '오류';
+                }
+            } catch(e) { msg.style.color = '#f87171'; msg.textContent = '네트워크 오류'; }
+        }
 
         function ctxPlayNext() {
             if (!ctxTrack) return;
