@@ -1157,8 +1157,8 @@ def video_download():
             dl_cmd = [YTDLP, '--no-warnings', '-o', tmp_base + '.%(ext)s',
                       '-f', fmt, '--merge-output-format', 'mp4']
             if subtitles:
-                dl_cmd += ['--write-sub', '--write-auto-sub', '--sub-lang', 'ko,en',
-                           '--sub-format', 'srt/vtt', '--convert-subs', 'vtt']
+                dl_cmd += ['--write-auto-sub', '--sub-lang', 'ko',
+                           '--convert-subs', 'vtt', '--sleep-requests', '2']
             dl_cmd.append(url)
             res = subprocess.run(dl_cmd, capture_output=True, text=True, timeout=3600)
             if res.returncode != 0:
