@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tunify Video</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f0f13;color:#e8e8e8;font-family:'Segoe UI',sans-serif;min-height:100vh;display:flex;flex-direction:column}
+.topnav{height:52px;background:#111;border-bottom:1px solid #222;display:flex;align-items:center;padding:0 20px;gap:12px;flex-shrink:0}
+.topnav .logo{font-size:1.1rem;font-weight:700;color:#ff5500;cursor:pointer}
+.topnav .sep{color:#444}
+.topnav .page{font-size:.95rem;font-weight:600}
+.topnav .spacer{flex:1}
+.topnav .user{font-size:.82rem;color:#666}
+
+.layout{display:flex;flex:1;overflow:hidden}
+.sidebar{width:230px;background:#111;border-right:1px solid #222;padding:16px 0;flex-shrink:0;display:flex;flex-direction:column;gap:2px}
+.nav-item{padding:10px 18px;cursor:pointer;color:#888;font-size:.85rem;display:flex;align-items:center;gap:10px;transition:.12s;border-left:3px solid transparent}
+.nav-item:hover{color:#fff;background:rgba(255,255,255,.04)}
+.nav-item.active{color:#fff;border-left-color:#ff5500;background:rgba(255,85,0,.06)}
+
+.content{flex:1;overflow-y:auto;padding:24px}
+
+/* 다운로드 패널 */
+.dl-panel{background:#1a1a22;border:1px solid #2a2a35;border-radius:12px;padding:20px;margin-bottom:24px}
+.dl-panel h3{font-size:.95rem;font-weight:700;margin-bottom:14px;color:#a78bfa}
+.dl-row{display:flex;gap:8px;margin-bottom:10px}
+.dl-input{flex:1;background:#111118;border:1px solid #333;border-radius:7px;color:#eee;padding:9px 12px;font-size:.88rem;font-family:inherit;outline:none}
+.dl-input:focus{border-color:#7c3aed}
+.dl-btn{background:#7c3aed;border:none;color:#fff;padding:9px 18px;border-radius:7px;cursor:pointer;font-size:.88rem;white-space:nowrap;transition:.12s}
+.dl-btn:hover{background:#6d28d9}
+.dl-opts{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;align-items:center}
+.opt-label{font-size:.78rem;color:#666;margin-right:2px}
+.opt-select{background:#111118;border:1px solid #333;border-radius:6px;color:#eee;padding:5px 10px;font-size:.82rem;font-family:inherit;outline:none;cursor:pointer}
+.opt-check{display:flex;align-items:center;gap:5px;font-size:.82rem;color:#aaa;cursor:pointer}
+.opt-check input{accent-color:#a78bfa;width:14px;height:14px;cursor:pointer}
+
+/* 진행 상태 */
+.job-list{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.job-item{background:#111118;border:1px solid #2a2a35;border-radius:8px;padding:10px 14px}
+.job-title{font-size:.85rem;font-weight:600;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.job-bar-wrap{background:#1e1e2a;border-radius:4px;height:5px;overflow:hidden}
+.job-bar{height:100%;background:#7c3aed;transition:.3s;border-radius:4px}
+.job-status{font-size:.72rem;color:#666;margin-top:4px}
+
+/* 영상 목록 */
+.video-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+.video-card{background:#1a1a22;border:1px solid #2a2a35;border-radius:10px;overflow:hidden;cursor:pointer;transition:.12s}
+.video-card:hover{border-color:#3a3a50;transform:translateY(-2px)}
+.video-thumb{width:100%;aspect-ratio:16/9;object-fit:cover;background:#111;display:block}
+.video-thumb-placeholder{width:100%;aspect-ratio:16/9;background:linear-gradient(135deg,#1a1a2e,#2a2a3a);display:flex;align-items:center;justify-content:center;font-size:2.5rem}
+.video-info{padding:10px 12px}
+.video-title{font-size:.85rem;font-weight:600;margin-bottom:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.video-meta{font-size:.72rem;color:#666}
+.video-actions{display:flex;gap:6px;margin-top:8px}
+.vid-btn{flex:1;padding:5px;border-radius:6px;border:1px solid #333;background:none;color:#aaa;font-size:.72rem;cursor:pointer;font-family:inherit;transition:.12s}
+.vid-btn:hover{border-color:#ff5500;color:#fff}
+.vid-btn.del{color:#f87171;border-color:#7f1d1d}
+.vid-btn.del:hover{background:#7f1d1d}
+.empty{color:#444;text-align:center;padding:60px 0;font-size:.9rem}
+
+/* 플레이어 오버레이 */
+.player-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:200;flex-direction:column;align-items:center;justify-content:center;padding:16px}
+.player-overlay.open{display:flex}
+.player-header{width:100%;max-width:900px;display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.player-title{flex:1;font-size:.95rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.player-close{background:none;border:1px solid #444;color:#aaa;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:.82rem}
+.player-video{width:100%;max-width:900px;border-radius:10px;background:#000;outline:none}
+.player-subs{margin-top:10px;width:100%;max-width:900px;display:flex;gap:8px;align-items:center}
+.player-subs label{font-size:.8rem;color:#888}
+</style>
+</head>
+<body>
+<nav class="topnav">
+  <span class="logo" onclick="location.href='/player.html'">♪ Tunify</span>
+  <span class="sep">›</span>
+  <span class="page">🎬 Video</span>
+  <div class="spacer"></div>
+  <span class="user" id="user-txt"></span>
+</nav>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="nav-item active" id="nav-all" onclick="setView('all')"><span>🎬</span> 모든 영상</div>
+    <div class="nav-item" id="nav-mine" onclick="setView('mine')"><span>👤</span> 내 영상</div>
+    <div class="nav-item" onclick="location.href='/player.html'"><span>🎵</span> 음악 플레이어</div>
+    <div class="nav-item" onclick="location.href='/maker.html'"><span>🎛</span> Maker</div>
+  </aside>
+
+  <main class="content">
+    <!-- 다운로드 패널 -->
+    <div class="dl-panel">
+      <h3>📥 유튜브 영상 다운로드</h3>
+      <div class="dl-row">
+        <input class="dl-input" id="dl-url" type="text" placeholder="YouTube URL 입력..." onkeydown="if(event.key==='Enter') startDownload()">
+        <button class="dl-btn" onclick="startDownload()">다운로드</button>
+      </div>
+      <div class="dl-opts">
+        <span class="opt-label">화질</span>
+        <select class="opt-select" id="dl-quality">
+          <option value="best">최고 화질</option>
+          <option value="1080">1080p</option>
+          <option value="720">720p</option>
+          <option value="480">480p</option>
+          <option value="360">360p</option>
+        </select>
+        <span class="opt-label" style="margin-left:8px">음질</span>
+        <select class="opt-select" id="dl-audio">
+          <option value="0">최고 음질</option>
+          <option value="5">보통</option>
+          <option value="9">낮음 (저용량)</option>
+        </select>
+        <label class="opt-check" style="margin-left:8px">
+          <input type="checkbox" id="dl-subs"> 자막 포함
+        </label>
+      </div>
+      <div class="job-list" id="job-list"></div>
+    </div>
+
+    <!-- 영상 목록 -->
+    <div id="video-list"></div>
+  </main>
+</div>
+
+<!-- 플레이어 오버레이 -->
+<div class="player-overlay" id="player-overlay">
+  <div class="player-header">
+    <div class="player-title" id="player-title"></div>
+    <button class="player-close" onclick="closePlayer()">✕ 닫기</button>
+  </div>
+  <video class="player-video" id="player-video" controls>
+    <track id="player-track" kind="subtitles" label="자막" default>
+  </video>
+  <div class="player-subs" id="player-subs" style="display:none">
+    <label>자막:</label>
+    <button onclick="toggleSubs(true)" style="background:#1e1e2a;border:1px solid #333;color:#aaa;padding:4px 10px;border-radius:5px;cursor:pointer;font-size:.78rem;">켜기</button>
+    <button onclick="toggleSubs(false)" style="background:#1e1e2a;border:1px solid #333;color:#aaa;padding:4px 10px;border-radius:5px;cursor:pointer;font-size:.78rem;">끄기</button>
+  </div>
+</div>
+
+<script>
+const PI_URL = localStorage.getItem('MPL_URL') || '';
+const UID = localStorage.getItem('MPL_USER') || '';
+const ROLE = localStorage.getItem('MPL_ROLE') || 'user';
+const NICK = localStorage.getItem('MPL_NICKNAME') || UID;
+
+if (!PI_URL || !UID) location.replace('/player.html');
+document.getElementById('user-txt').textContent = NICK + (ROLE === 'admin' ? ' (관리자)' : '');
+
+const H = { 'ngrok-skip-browser-warning': 'true' };
+function api(url, opts = {}) {
+  return fetch(PI_URL + url, { ...opts, headers: { ...H, ...(opts.headers || {}) } }).then(r => r.json());
+}
+
+let videos = [], activeView = 'all';
+let activeJobs = {};   // job_id → intervalId
+
+async function loadVideos() {
+  const d = await api('/api/video/list');
+  videos = d.videos || [];
+  renderList();
+}
+
+function setView(v) {
+  activeView = v;
+  document.getElementById('nav-all').classList.toggle('active', v === 'all');
+  document.getElementById('nav-mine').classList.toggle('active', v === 'mine');
+  renderList();
+}
+
+function renderList() {
+  const list = document.getElementById('video-list');
+  let vids = activeView === 'mine' ? videos.filter(v => v.uid === UID) : videos;
+  if (!vids.length) {
+    list.innerHTML = '<div class="empty">영상이 없습니다.<br>위에서 유튜브 URL을 입력해 다운로드하세요.</div>';
+    return;
+  }
+  list.innerHTML = '<div class="video-grid">' + vids.map(v => `
+    <div class="video-card" onclick="playVideo('${v.id}')">
+      ${v.thumb_file
+        ? `<img class="video-thumb" src="${PI_URL}/api/video/thumb/${v.id}" onerror="this.style.display='none'">`
+        : `<div class="video-thumb-placeholder">🎬</div>`}
+      <div class="video-info">
+        <div class="video-title">${esc(v.title)}</div>
+        <div class="video-meta">${esc(v.uploader||'')} · ${v.quality==='best'?'최고화질':v.quality+'p'} · ${new Date(v.created_at*1000).toLocaleDateString('ko')}</div>
+        <div class="video-actions">
+          <button class="vid-btn" onclick="event.stopPropagation();playVideo('${v.id}')">▶ 재생</button>
+          ${ROLE==='admin'||v.uid===UID ? `<button class="vid-btn del" onclick="event.stopPropagation();deleteVideo('${v.id}')">🗑 삭제</button>` : ''}
+        </div>
+      </div>
+    </div>`).join('') + '</div>';
+}
+
+function playVideo(vid_id) {
+  const v = videos.find(x => x.id === vid_id);
+  if (!v) return;
+  const pv = document.getElementById('player-video');
+  const pt = document.getElementById('player-track');
+  document.getElementById('player-title').textContent = v.title;
+  pv.src = PI_URL + `/api/video/serve/${vid_id}`;
+  if (v.sub_file) {
+    pt.src = PI_URL + `/api/video/serve/${vid_id}?sub=1`;
+    document.getElementById('player-subs').style.display = 'flex';
+  } else {
+    pt.src = '';
+    document.getElementById('player-subs').style.display = 'none';
+  }
+  document.getElementById('player-overlay').classList.add('open');
+  pv.play().catch(()=>{});
+}
+
+function closePlayer() {
+  const pv = document.getElementById('player-video');
+  pv.pause(); pv.src = '';
+  document.getElementById('player-overlay').classList.remove('open');
+}
+
+function toggleSubs(on) {
+  const pv = document.getElementById('player-video');
+  if (pv.textTracks[0]) pv.textTracks[0].mode = on ? 'showing' : 'hidden';
+}
+
+async function deleteVideo(vid_id) {
+  if (!confirm('삭제하시겠습니까?')) return;
+  const d = await api(`/api/video/delete/${vid_id}?uid=${UID}`, { method: 'DELETE' });
+  if (d.success) { videos = videos.filter(v => v.id !== vid_id); renderList(); }
+  else alert(d.error || '삭제 실패');
+}
+
+async function startDownload() {
+  const url = document.getElementById('dl-url').value.trim();
+  if (!url) return alert('URL을 입력하세요');
+  const quality = document.getElementById('dl-quality').value;
+  const audio_quality = document.getElementById('dl-audio').value;
+  const subtitles = document.getElementById('dl-subs').checked;
+
+  const d = await api('/api/video/download', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ uid: UID, url, quality, audio_quality, subtitles })
+  });
+  if (!d.success) return alert(d.error || '오류');
+  document.getElementById('dl-url').value = '';
+  addJobUI(d.job_id);
+}
+
+function addJobUI(job_id) {
+  const list = document.getElementById('job-list');
+  const el = document.createElement('div');
+  el.className = 'job-item'; el.id = 'job-' + job_id;
+  el.innerHTML = `<div class="job-title" id="jt-${job_id}">준비 중...</div>
+    <div class="job-bar-wrap"><div class="job-bar" id="jb-${job_id}" style="width:0%"></div></div>
+    <div class="job-status" id="js-${job_id}">0%</div>`;
+  list.prepend(el);
+
+  activeJobs[job_id] = setInterval(async () => {
+    try {
+      const j = await api(`/api/video/job/${job_id}`);
+      document.getElementById('jt-' + job_id).textContent = j.title || '다운로드 중...';
+      document.getElementById('jb-' + job_id).style.width = (j.progress || 0) + '%';
+      document.getElementById('js-' + job_id).textContent = j.status || '';
+      if (j.progress >= 100 || (j.status || '').startsWith('오류')) {
+        clearInterval(activeJobs[job_id]);
+        delete activeJobs[job_id];
+        if (j.progress >= 100) { await loadVideos(); }
+        setTimeout(() => el.remove(), 4000);
+      }
+    } catch(e) { clearInterval(activeJobs[job_id]); }
+  }, 2000);
+}
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ESC로 플레이어 닫기
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closePlayer(); });
+
+loadVideos();
+</script>
+</body>
+</html>

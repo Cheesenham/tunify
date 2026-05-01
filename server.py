@@ -1052,6 +1052,164 @@ def board_posts_delete(cid, pid):
 def board_image(fname):
     return send_from_directory(BOARD_IMG_DIR, fname)
 
+# ─── 영상 다운로드 (USB 저장) ─────────────────────────────────
+VIDEO_DIR = os.path.join(WEBHARD_DIR, 'videos')
+os.makedirs(VIDEO_DIR, exist_ok=True)
+VIDEO_DB = os.path.join(VIDEO_DIR, 'video_db.json')
+_video_jobs = {}   # job_id → {title, progress, status, thumbnail}
+_vdb_lock = threading.Lock()
+
+def _load_vdb():
+    if not os.path.exists(VIDEO_DB):
+        return []
+    with open(VIDEO_DB, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+def _save_vdb(db):
+    with _vdb_lock:
+        with open(VIDEO_DB, 'w', encoding='utf-8') as f:
+            json.dump(db, f, ensure_ascii=False, indent=2)
+
+@app.route('/api/video/list')
+def video_list():
+    return jsonify({'success': True, 'videos': _load_vdb()})
+
+@app.route('/api/video/serve/<vid_id>')
+def video_serve(vid_id):
+    db = _load_vdb()
+    v = next((x for x in db if x['id'] == vid_id), None)
+    if not v:
+        return jsonify({'error': 'not found'}), 404
+    if request.args.get('sub') == '1' and v.get('sub_file'):
+        return send_from_directory(VIDEO_DIR, v['sub_file'])
+    return send_from_directory(VIDEO_DIR, v['file'])
+
+@app.route('/api/video/thumb/<vid_id>')
+def video_thumb(vid_id):
+    db = _load_vdb()
+    v = next((x for x in db if x['id'] == vid_id), None)
+    if not v or not v.get('thumb_file'):
+        return jsonify({'error': 'not found'}), 404
+    return send_from_directory(VIDEO_DIR, v['thumb_file'])
+
+@app.route('/api/video/delete/<vid_id>', methods=['DELETE'])
+def video_delete(vid_id):
+    uid = request.args.get('uid', '')
+    db = _load_vdb()
+    v = next((x for x in db if x['id'] == vid_id), None)
+    if not v:
+        return jsonify({'success': False, 'error': 'not found'}), 404
+    users = _load_users()
+    if v.get('uid') != uid and users.get(uid, {}).get('role') != 'admin':
+        return jsonify({'success': False, 'error': '권한 없음'}), 403
+    for fname in [v.get('file'), v.get('thumb_file'), v.get('sub_file')]:
+        if fname:
+            try: os.remove(os.path.join(VIDEO_DIR, fname))
+            except: pass
+    _save_vdb([x for x in db if x['id'] != vid_id])
+    return jsonify({'success': True})
+
+@app.route('/api/video/job/<job_id>')
+def video_job_status(job_id):
+    j = _video_jobs.get(job_id, {'status': 'unknown', 'progress': 0})
+    return jsonify(j)
+
+@app.route('/api/video/download', methods=['POST'])
+def video_download():
+    data = request.json or {}
+    uid = data.get('uid', '')
+    url = data.get('url', '').strip()
+    quality = data.get('quality', 'best')   # best / 1080 / 720 / 480 / 360
+    audio_quality = data.get('audio_quality', '0')  # 0=best
+    subtitles = data.get('subtitles', False)
+    if not uid or not url:
+        return jsonify({'success': False, 'error': 'missing params'}), 400
+
+    import uuid as _uuid
+    job_id = _uuid.uuid4().hex[:12]
+    _video_jobs[job_id] = {'progress': 0, 'status': '준비 중...', 'title': ''}
+
+    def _run():
+        try:
+            vid_id = _uuid.uuid4().hex[:12]
+            tmp_base = os.path.join(VIDEO_DIR, f'tmp_{vid_id}')
+
+            # 메타 정보
+            meta = subprocess.run(
+                [YTDLP, '--no-warnings', '--print', '%(title)s\t%(uploader)s\t%(id)s',
+                 '--skip-download', url],
+                capture_output=True, text=True, timeout=30
+            )
+            parts = (meta.stdout.strip().split('\n')[0] if meta.stdout.strip() else '').split('\t')
+            def _v(i): return parts[i].strip() if len(parts) > i and parts[i].strip() not in ('', 'NA', 'None') else ''
+            title = _v(0) or 'Unknown'
+            uploader = _v(1)
+            yt_id = _v(2)
+            thumbnail_url = f"https://img.youtube.com/vi/{yt_id}/mqdefault.jpg" if yt_id else ''
+            _video_jobs[job_id].update({'title': title, 'progress': 10, 'status': '다운로드 중...'})
+
+            # 화질 포맷 설정
+            if quality == 'best':
+                fmt = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
+            else:
+                fmt = f'bestvideo[height<={quality}][ext=mp4]+bestaudio[ext=m4a]/best[height<={quality}][ext=mp4]/best[height<={quality}]'
+
+            dl_cmd = [YTDLP, '--no-warnings', '-o', tmp_base + '.%(ext)s',
+                      '-f', fmt, '--merge-output-format', 'mp4']
+            if subtitles:
+                dl_cmd += ['--write-sub', '--write-auto-sub', '--sub-lang', 'ko,en',
+                           '--sub-format', 'srt/vtt', '--convert-subs', 'vtt']
+            dl_cmd.append(url)
+            res = subprocess.run(dl_cmd, capture_output=True, text=True, timeout=3600)
+            if res.returncode != 0:
+                raise Exception((res.stderr.strip().split('\n') or ['다운로드 실패'])[-1][:200])
+            _video_jobs[job_id].update({'progress': 80, 'status': '파일 처리 중...'})
+
+            # 파일 탐색
+            import glob as _g
+            found = [f for f in _g.glob(tmp_base + '*') if not f.endswith('.part')]
+            vid_file = next((f for f in found if f.endswith('.mp4') or f.endswith('.mkv') or f.endswith('.webm')), None)
+            if not vid_file:
+                raise Exception('영상 파일 없음')
+            ext = os.path.splitext(vid_file)[1]
+            final_name = f'vid_{vid_id}{ext}'
+            os.rename(vid_file, os.path.join(VIDEO_DIR, final_name))
+
+            # 자막 파일
+            sub_file = None
+            sub_found = [f for f in found if f.endswith('.vtt') or f.endswith('.srt')]
+            if sub_found:
+                sub_ext = os.path.splitext(sub_found[0])[1]
+                sub_name = f'sub_{vid_id}{sub_ext}'
+                os.rename(sub_found[0], os.path.join(VIDEO_DIR, sub_name))
+                sub_file = sub_name
+
+            # 썸네일 저장
+            thumb_name = None
+            if thumbnail_url:
+                try:
+                    thumb_name = f'thumb_{vid_id}.jpg'
+                    urllib.request.urlretrieve(thumbnail_url, os.path.join(VIDEO_DIR, thumb_name))
+                except: thumb_name = None
+
+            # 임시 파일 정리
+            for f in _g.glob(tmp_base + '*'):
+                try: os.remove(f)
+                except: pass
+
+            # DB 저장
+            db = _load_vdb()
+            db.append({'id': vid_id, 'uid': uid, 'title': title, 'uploader': uploader,
+                       'file': final_name, 'thumb_file': thumb_name, 'sub_file': sub_file,
+                       'quality': quality, 'source_url': url, 'created_at': int(time.time())})
+            _save_vdb(db)
+            _video_jobs[job_id].update({'progress': 100, 'status': '완료 ✓', 'vid_id': vid_id})
+        except Exception as e:
+            _video_jobs[job_id].update({'progress': 0, 'status': f'오류: {e}'})
+
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({'success': True, 'job_id': job_id})
+
 # ─── 노래 공유 ────────────────────────────────────────────────
 import random, string
 share_codes = {}  # code -> {uid, file_id, expires}
