@@ -1146,11 +1146,13 @@
             } catch(e) { playlists = []; }
         }
 
-        async function renderView() {
+        async function renderView(skipLoad = false) {
             const container = document.getElementById('track-list');
             document.getElementById('view-title').innerText = activeView === 'all' ? 'All Tracks' : 'Playlists';
-            container.innerHTML = '<div style="color:#444; padding:20px; font-size:0.85rem;">Loading...</div>';
-            await loadData();
+            if (!skipLoad) {
+                container.innerHTML = '<div style="color:#444; padding:20px; font-size:0.85rem;">Loading...</div>';
+                await loadData();
+            }
 
             if (activeView === 'all') {
                 trackList = allFiles.filter(f => !f.playlist_id);
@@ -1510,30 +1512,15 @@
                         const f = arr.find(x => x.id === targetId);
                         if (f) f.thumbnail = newThumb;
                     });
-                    // NP 화면 직접 업데이트
+                    // NP 화면 즉시 업데이트
                     if (currentItem?.id === targetId) {
                         document.getElementById('np-art').src = newThumb;
                         document.getElementById('now-thumb').src = newThumb;
                         currentItem.thumbnail = newThumb;
                     }
-                    // renderView() 대신 DOM 직접 패치 (재fetch 없이)
-                    document.querySelectorAll('.track-item').forEach(el => {
-                        const idx = parseInt(el.dataset.idx);
-                        if (isNaN(idx)) return;
-                        const track = trackList[idx];
-                        if (!track || track.id !== targetId) return;
-                        const img = el.querySelector('img.track-thumb');
-                        const wrap = el.querySelector('.track-thumb-wrap');
-                        if (!img || !wrap) return;
-                        wrap.classList.remove('no-cover');
-                        wrap.onclick = null;
-                        // onerror가 no-cover를 다시 붙이지 못하도록 교체
-                        img.onerror = null;
-                        img.onload = () => { img.style.opacity = '1'; };
-                        img.src = newThumb;
-                        img.style.opacity = '1';
-                    });
                     closeCoverModal();
+                    // 서버 재fetch 없이 메모리 기반으로 즉시 재렌더
+                    renderView(true);
                 }
             } catch(e) { alert(e.message); }
             btn.disabled = false; btn.innerText = '적용';
