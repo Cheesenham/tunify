@@ -1572,14 +1572,15 @@
         let shareCountdownTimer = null;
         function ctxShareSong() {
             if (!ctxTrack) return;
+            const track = ctxTrack;
             hideCtxMenu();
             apiFetch(`${PI_URL}/api/share/create`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ uid: UID, file_id: ctxTrack.id })
+                body: JSON.stringify({ uid: UID, file_id: track.id })
             }).then(r => r.json()).then(d => {
                 if (!d.success) return alert(d.error || '오류');
-                document.getElementById('share-song-name').textContent = ctxTrack.filename;
+                document.getElementById('share-song-name').textContent = track.filename;
                 document.getElementById('share-code-display').textContent = d.code;
                 document.getElementById('modal-share').style.display = 'flex';
                 clearInterval(shareCountdownTimer);
