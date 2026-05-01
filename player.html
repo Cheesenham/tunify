@@ -288,13 +288,15 @@
             .topnav .logo { font-size: 1rem; }
             .content { padding: 16px; padding-bottom: calc(16px + var(--player-h) + 56px); }
             .content-title { font-size: 1.1rem; margin-bottom: 14px; }
-            .now-playing { width: 160px; }
-            .player-right { width: auto; }
+            .now-playing { width: auto; flex: 0 0 auto; max-width: 38%; }
+            .player-center { min-width: 0; flex: 1; }
+            .player-right { width: auto; flex-shrink: 0; gap: 4px; }
+            .vol-wrap { display: none; }
             .sync-wrap { display: none !important; }
             .track-item { padding: 8px 6px; }
             .track-thumb-wrap { width: 38px; height: 38px; }
             .track-thumb { width: 38px; height: 38px; }
-            .player-bar { padding: 0 12px; gap: 12px; }
+            .player-bar { padding: 0 10px; gap: 8px; }
             .fab { bottom: 156px; }
             .queue-badge { padding: 5px 8px; font-size: 0.75rem; }
             .playlist-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
@@ -672,6 +674,13 @@
                 <button class="np-down-btn" onclick="closeCoverModal()">✕</button>
             </div>
             <div class="cover-track-info" id="cover-track-info"></div>
+            <div style="display:flex;gap:6px;padding:0 16px 10px;">
+                <input type="text" id="cover-search-q" placeholder="검색어 직접 입력..."
+                    style="flex:1;background:#111;border:1px solid #333;border-radius:6px;color:#eee;padding:7px 10px;font-size:.85rem;font-family:inherit;outline:none;"
+                    onkeydown="if(event.key==='Enter') searchCoverManual()">
+                <button onclick="searchCoverManual()"
+                    style="background:#333;border:none;color:#eee;padding:7px 14px;border-radius:6px;cursor:pointer;font-size:.85rem;flex-shrink:0;">🔍</button>
+            </div>
             <div class="cover-candidates" id="cover-candidates">
                 <div class="cover-loading">🔍 검색 중...</div>
             </div>
@@ -1259,6 +1268,19 @@
             lyrics = []; syncOffset = 0; prefetchTriggered = false;
             renderQueueInline();
 
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.metadata = new MediaMetadata({
+                    title: item.filename,
+                    artist: item.artist || '',
+                    album: 'Tunify',
+                    artwork: item.thumbnail ? [{ src: item.thumbnail, sizes: '256x256', type: 'image/jpeg' }] : []
+                });
+                navigator.mediaSession.setActionHandler('play', () => { audio.play(); document.getElementById('play-btn').innerText='⏸'; document.getElementById('np-play-btn').innerText='⏸'; });
+                navigator.mediaSession.setActionHandler('pause', () => { audio.pause(); document.getElementById('play-btn').innerText='▶'; document.getElementById('np-play-btn').innerText='▶'; });
+                navigator.mediaSession.setActionHandler('previoustrack', prevTrack);
+                navigator.mediaSession.setActionHandler('nexttrack', nextTrack);
+            }
+
             audio.pause();
             if (audio._blobUrl) { URL.revokeObjectURL(audio._blobUrl); audio._blobUrl = null; }
             try {
@@ -1418,23 +1440,35 @@
             coverTargetItem = item;
             coverSelectedUrl = null;
             const info = document.getElementById('cover-track-info');
-            const cands = document.getElementById('cover-candidates');
-            const btn   = document.getElementById('cover-apply-btn');
+            const btn  = document.getElementById('cover-apply-btn');
             info.innerText = item.filename + (item.artist ? ' · ' + item.artist : '');
-            cands.innerHTML = '<div class="cover-loading">🔍 커버 검색 중...</div>';
             btn.disabled = true; btn.innerText = '적용';
             document.getElementById('cover-modal').classList.add('open');
+            const q = [item.filename, item.artist].filter(Boolean).join(' ');
+            document.getElementById('cover-search-q').value = q;
+            await runCoverSearch(q);
+        }
+        async function searchCoverManual() {
+            const q = document.getElementById('cover-search-q').value.trim();
+            if (!q) return;
+            await runCoverSearch(q);
+        }
+        async function runCoverSearch(q) {
+            const cands = document.getElementById('cover-candidates');
+            const btn   = document.getElementById('cover-apply-btn');
+            cands.innerHTML = '<div class="cover-loading">🔍 검색 중...</div>';
+            btn.disabled = true; coverSelectedUrl = null;
             try {
                 const r = await apiFetch(`${PI_URL}/api/cover/search`, {
                     method: 'POST',
-                    body: JSON.stringify({title: item.filename, artist: item.artist || '', uid: UID})
+                    body: JSON.stringify({title: q, artist: '', uid: UID})
                 });
                 const d = await r.json();
                 if (!d.success || !d.candidates?.length) {
-                    cands.innerHTML = '<div class="cover-loading">커버를 찾지 못했습니다.<br><small style="color:#333;">다른 곡을 시도해 보세요.</small></div>';
+                    cands.innerHTML = '<div class="cover-loading">커버를 찾지 못했습니다.<br><small style="color:#555;">검색어를 바꿔 보세요.</small></div>';
                     return;
                 }
-                cands.innerHTML = d.candidates.map((c, i) => `
+                cands.innerHTML = d.candidates.map((c) => `
                     <div class="cover-candidate" onclick="selectCover(this,'${c.url.replace(/'/g,"\\'")}')">
                         <img src="${c.thumb}" onerror="this.src=''" loading="lazy" alt="">
                         <div class="cover-cand-info">
