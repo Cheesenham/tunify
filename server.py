@@ -1063,12 +1063,14 @@ def share_create():
     file_id = data.get('file_id', '')
     if not uid or not file_id:
         return jsonify({'success': False, 'error': 'missing params'}), 400
-    db_path = os.path.join(STORAGE_DIR, uid, 'db.json')
+    # 전역 db.json에서 파일 확인
+    db_path = os.path.join(STORAGE_DIR, 'db.json')
     if not os.path.exists(db_path):
         return jsonify({'success': False, 'error': 'not found'}), 404
     with open(db_path, 'r', encoding='utf-8') as f:
         db = json.load(f)
-    if not any(item.get('id') == file_id for item in db):
+    orig = next((item for item in db if item.get('id') == file_id and item.get('uid') == uid), None)
+    if not orig:
         return jsonify({'success': False, 'error': 'file not found'}), 404
     # 만료된 코드 정리
     now = time.time()
@@ -1094,27 +1096,22 @@ def share_claim():
         return jsonify({'success': False, 'error': '코드가 만료되었거나 올바르지 않습니다.'}), 404
     sender_uid = entry['uid']
     file_id = entry['file_id']
-    sender_db = os.path.join(STORAGE_DIR, sender_uid, 'db.json')
-    with open(sender_db, 'r', encoding='utf-8') as f:
-        sender_files = json.load(f)
-    orig = next((i for i in sender_files if i.get('id') == file_id), None)
+    # 전역 db.json에서 원본 파일 찾기
+    db_path = os.path.join(STORAGE_DIR, 'db.json')
+    with open(db_path, 'r', encoding='utf-8') as f:
+        db = json.load(f)
+    orig = next((i for i in db if i.get('id') == file_id and i.get('uid') == sender_uid), None)
     if not orig:
         return jsonify({'success': False, 'error': 'file not found'}), 404
-    receiver_db_path = os.path.join(STORAGE_DIR, receiver_uid, 'db.json')
-    os.makedirs(os.path.join(STORAGE_DIR, receiver_uid), exist_ok=True)
-    receiver_files = []
-    if os.path.exists(receiver_db_path):
-        with open(receiver_db_path, 'r', encoding='utf-8') as f:
-            receiver_files = json.load(f)
-    # 이미 공유된 경우 스킵
-    if any(i.get('id') == file_id or (i.get('file_uid') == sender_uid and i.get('file_id') == file_id) for i in receiver_files):
+    # 이미 수신된 경우 스킵
+    if any(i.get('id') == file_id for i in db if i.get('uid') == receiver_uid):
         share_codes.pop(code, None)
         return jsonify({'success': True, 'msg': '이미 라이브러리에 있습니다.'})
-    # 공유 레코드 추가 (실제 파일은 sender 디렉토리 참조)
-    shared_entry = {**orig, 'file_uid': sender_uid, 'shared_from': sender_uid}
-    receiver_files.append(shared_entry)
-    with open(receiver_db_path, 'w', encoding='utf-8') as f:
-        json.dump(receiver_files, f, ensure_ascii=False, indent=2)
+    # 공유 레코드 추가: receiver uid로, 실제 파일은 sender 경로 참조
+    shared_entry = {**orig, 'uid': receiver_uid, 'file_uid': sender_uid, 'shared_from': sender_uid}
+    db.append(shared_entry)
+    with open(db_path, 'w', encoding='utf-8') as f:
+        json.dump(db, f, ensure_ascii=False, indent=2)
     share_codes.pop(code, None)
     return jsonify({'success': True, 'msg': f'"{orig.get("filename","노래")}" 이(가) 라이브러리에 추가되었습니다.'})
 
