@@ -65,7 +65,7 @@ def skip_ngrok_warning(response):
 
 @app.route('/api/status')
 def status():
-    return jsonify({"success": True, "msg": "MPL Pi Server Online [autodeploy-test]", "ffmpeg": check_ffmpeg()})
+    return jsonify({"success": True, "msg": "MPL Pi Server Online", "ffmpeg": check_ffmpeg()})
 
 # --- 검색 ---
 @app.route('/api/search', methods=['POST'])
