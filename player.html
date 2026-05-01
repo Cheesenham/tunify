@@ -539,8 +539,14 @@
             <div class="nav-item" onclick="window.location.href='/maker.html'">
                 <span>🎛</span> Maker
             </div>
+            <div class="nav-item" onclick="window.location.href='/board.html'">
+                <span>📋</span> 게시판
+            </div>
             <div class="nav-item webhard-only" id="nav-webhard" onclick="window.location.href='/webhard.html'" style="display:none;">
                 <span>💾</span> WebHard
+            </div>
+            <div class="nav-item admin-only" id="nav-notice-mgr" onclick="openNoticeModal()" style="display:none;">
+                <span>📢</span> 공지 관리
             </div>
             <div class="nav-item admin-only" id="nav-users" onclick="openUsersModal()" style="display:none;">
                 <span>👥</span> 계정 관리
@@ -739,10 +745,51 @@
                 <span class="icon">🎛</span>
                 <span>Maker</span>
             </button>
+            <button class="bnav-item" onclick="window.location.href='/board.html'">
+                <span class="icon">📋</span>
+                <span>Board</span>
+            </button>
             <button class="bnav-item webhard-only" id="bnav-webhard" onclick="window.location.href='/webhard.html'" style="display:none;">
                 <span class="icon">💾</span>
                 <span>WebHard</span>
             </button>
+        </div>
+    </div>
+
+    <!-- Notice Modal -->
+    <div id="notice-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:300;align-items:center;justify-content:center;padding:16px;">
+        <div style="background:#1a1a22;border:1px solid #3a3a50;border-radius:14px;padding:22px;width:100%;max-width:480px;max-height:88vh;overflow-y:auto;">
+            <div style="font-size:.75rem;color:#a78bfa;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">공지사항</div>
+            <div id="notice-title" style="font-size:1.1rem;font-weight:700;margin-bottom:10px;"></div>
+            <img id="notice-img" src="" style="width:100%;border-radius:8px;margin-bottom:12px;display:none;" onerror="this.style.display='none'">
+            <div id="notice-body" style="white-space:pre-wrap;font-size:.93rem;line-height:1.65;color:#ccc;margin-bottom:18px;"></div>
+            <div style="display:flex;gap:8px;justify-content:flex-end;">
+                <button onclick="dismissNotice(true)" style="background:#1e1e2a;border:1px solid #3a3a50;color:#aaa;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:.85rem;">1시간 열지 않기</button>
+                <button onclick="dismissNotice(false)" style="background:#7c3aed;border:none;color:#fff;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:.85rem;">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notice Manage Modal -->
+    <div id="notice-mgr-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:300;align-items:center;justify-content:center;padding:16px;">
+        <div style="background:#1a1a22;border:1px solid #3a3a50;border-radius:14px;padding:22px;width:100%;max-width:500px;max-height:90vh;overflow-y:auto;">
+            <div style="display:flex;align-items:center;margin-bottom:16px;">
+                <span style="font-size:1rem;font-weight:700;flex:1;">📢 공지 관리</span>
+                <button onclick="document.getElementById('notice-mgr-modal').style.display='none'" style="background:none;border:none;color:#888;font-size:1.2rem;cursor:pointer;">✕</button>
+            </div>
+            <div id="notice-list" style="margin-bottom:16px;"></div>
+            <details style="background:#111118;border:1px solid #3a3a50;border-radius:8px;padding:12px;">
+                <summary style="cursor:pointer;font-size:.9rem;color:#a78bfa;">+ 새 공지 작성</summary>
+                <div style="margin-top:12px;">
+                    <label style="font-size:.8rem;color:#999;display:block;">제목</label>
+                    <input type="text" id="nc-title" placeholder="공지 제목" style="width:100%;background:#0f0f13;border:1px solid #3a3a50;border-radius:7px;color:#e8e8e8;padding:8px 10px;font-size:.88rem;margin-top:4px;">
+                    <label style="font-size:.8rem;color:#999;display:block;margin-top:10px;">내용</label>
+                    <textarea id="nc-body" placeholder="공지 내용" style="width:100%;background:#0f0f13;border:1px solid #3a3a50;border-radius:7px;color:#e8e8e8;padding:8px 10px;font-size:.88rem;min-height:80px;resize:vertical;font-family:inherit;margin-top:4px;"></textarea>
+                    <label style="font-size:.8rem;color:#999;display:block;margin-top:10px;">이미지 (선택)</label>
+                    <input type="file" id="nc-img" accept="image/*" style="margin-top:4px;font-size:.82rem;color:#aaa;">
+                    <button onclick="submitNotice()" style="margin-top:12px;background:#7c3aed;border:none;color:#fff;padding:8px 20px;border-radius:8px;cursor:pointer;font-size:.88rem;">등록</button>
+                </div>
+            </details>
         </div>
     </div>
 
@@ -877,6 +924,7 @@
                 localStorage.setItem('MPL_WEBHARD', d.webhard ? '1' : '0');
                 hideLoginScreen();
                 initApp();
+                checkNotice();
             } catch(e) {
                 errEl.innerText = '서버에 연결할 수 없습니다.';
             }
@@ -900,6 +948,81 @@
                 e.style.display = hasWebhard ? '' : 'none';
             });
             renderView();
+        }
+
+        // --- 공지 ---
+        let _noticeQueue = [];
+        async function checkNotice() {
+            try {
+                const r = await apiFetch(`${PI_URL}/api/notice`);
+                const d = await r.json();
+                _noticeQueue = (d.notices || []).filter(n => {
+                    const skip = localStorage.getItem('NOTICE_SKIP_' + n.id);
+                    return !skip || Date.now() - parseInt(skip) > 3600000;
+                });
+                showNextNotice();
+            } catch(e) {}
+        }
+        function showNextNotice() {
+            if (!_noticeQueue.length) return;
+            const n = _noticeQueue.shift();
+            document.getElementById('notice-title').textContent = n.title || '';
+            document.getElementById('notice-body').textContent = n.body || '';
+            const img = document.getElementById('notice-img');
+            if (n.image) { img.src = PI_URL + n.image; img.style.display = ''; }
+            else img.style.display = 'none';
+            const ov = document.getElementById('notice-overlay');
+            ov.dataset.nid = n.id;
+            ov.style.display = 'flex';
+        }
+        function dismissNotice(skipHour) {
+            const ov = document.getElementById('notice-overlay');
+            if (skipHour) localStorage.setItem('NOTICE_SKIP_' + ov.dataset.nid, Date.now());
+            ov.style.display = 'none';
+            showNextNotice();
+        }
+        async function openNoticeModal() {
+            document.getElementById('notice-mgr-modal').style.display = 'flex';
+            await loadNoticeList();
+        }
+        async function loadNoticeList() {
+            const el = document.getElementById('notice-list');
+            el.innerHTML = '<div style="color:#555;font-size:.82rem;">불러오는 중...</div>';
+            try {
+                const r = await apiFetch(`${PI_URL}/api/notice`);
+                const d = await r.json();
+                const notices = d.notices || [];
+                if (!notices.length) { el.innerHTML = '<div style="color:#555;font-size:.82rem;padding:8px 0;">등록된 공지 없음</div>'; return; }
+                el.innerHTML = '';
+                notices.forEach(n => {
+                    const row = document.createElement('div');
+                    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px;background:#111118;border-radius:8px;margin-bottom:6px;';
+                    row.innerHTML = `<div style="flex:1;font-size:.88rem;">${n.title || '(제목 없음)'}</div>
+                        <button onclick="deleteNotice('${n.id}')" style="background:#7f1d1d;border:none;color:#fca5a5;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:.78rem;">삭제</button>`;
+                    el.appendChild(row);
+                });
+            } catch(e) { el.innerHTML = '<div style="color:#f87171;font-size:.82rem;">오류</div>'; }
+        }
+        async function submitNotice() {
+            const title = document.getElementById('nc-title').value.trim();
+            const body = document.getElementById('nc-body').value.trim();
+            if (!title) return alert('제목을 입력하세요');
+            const fd = new FormData();
+            fd.append('uid', UID); fd.append('title', title); fd.append('body', body);
+            const imgFile = document.getElementById('nc-img').files[0];
+            if (imgFile) fd.append('image', imgFile);
+            try {
+                const r = await fetch(`${PI_URL}/api/notice`, { method: 'POST', headers: {'ngrok-skip-browser-warning':'true'}, body: fd });
+                const d = await r.json();
+                if (d.success) { document.getElementById('nc-title').value = ''; document.getElementById('nc-body').value = ''; document.getElementById('nc-img').value = ''; await loadNoticeList(); }
+                else alert(d.error || '오류');
+            } catch(e) { alert('서버 오류'); }
+        }
+        async function deleteNotice(nid) {
+            if (!confirm('공지를 삭제하시겠습니까?')) return;
+            const r = await apiFetch(`${PI_URL}/api/notice/${nid}?uid=${UID}`, { method: 'DELETE' });
+            await r.json();
+            await loadNoticeList();
         }
 
         // --- 계정 관리 (admin) ---
