@@ -129,9 +129,7 @@ body{background:#0f0f13;color:#e8e8e8;font-family:'Segoe UI',sans-serif;min-heig
     <div class="player-title" id="player-title"></div>
     <button class="player-close" onclick="closePlayer()">✕ 닫기</button>
   </div>
-  <video class="player-video" id="player-video" controls>
-    <track id="player-track" kind="subtitles" label="자막" default>
-  </video>
+  <video class="player-video" id="player-video" controls crossorigin="anonymous"></video>
   <div class="player-subs" id="player-subs" style="display:none">
     <label>자막:</label>
     <button onclick="toggleSubs(true)" style="background:#1e1e2a;border:1px solid #333;color:#aaa;padding:4px 10px;border-radius:5px;cursor:pointer;font-size:.78rem;">켜기</button>
@@ -196,15 +194,34 @@ function playVideo(vid_id) {
   const v = videos.find(x => x.id === vid_id);
   if (!v) return;
   const pv = document.getElementById('player-video');
-  const pt = document.getElementById('player-track');
   document.getElementById('player-title').textContent = v.title;
-  pv.src = PI_URL + `/api/video/serve/${vid_id}`;
+
+  // 기존 track 제거 후 새로 추가해야 브라우저가 재로드함
+  pv.pause();
+  pv.removeAttribute('src');
+  [...pv.querySelectorAll('track')].forEach(t => t.remove());
+
   if (v.sub_file) {
-    pt.src = PI_URL + `/api/video/serve/${vid_id}?sub=1`;
+    const track = document.createElement('track');
+    track.kind = 'subtitles';
+    track.label = '자막';
+    track.srclang = 'ko';
+    track.src = PI_URL + `/api/video/serve/${vid_id}?sub=1`;
+    track.default = true;
+    pv.appendChild(track);
     document.getElementById('player-subs').style.display = 'flex';
   } else {
-    pt.src = '';
     document.getElementById('player-subs').style.display = 'none';
+  }
+
+  pv.src = PI_URL + `/api/video/serve/${vid_id}`;
+  pv.load();
+  // track이 로드된 후 mode를 showing으로 설정
+  if (v.sub_file) {
+    pv.addEventListener('loadedmetadata', function onMeta() {
+      pv.removeEventListener('loadedmetadata', onMeta);
+      if (pv.textTracks[0]) pv.textTracks[0].mode = 'showing';
+    });
   }
   document.getElementById('player-overlay').classList.add('open');
   pv.play().catch(()=>{});
