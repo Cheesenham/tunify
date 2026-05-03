@@ -737,7 +737,6 @@
                 <div class="queue-header-actions">
                     <button class="queue-btn" id="queue-shuffle-btn" onclick="shuffleQueue()">🔀 섞기</button>
                     <button class="queue-btn" onclick="clearQueue()">전체 삭제</button>
-                    <button class="queue-btn" onclick="clearAutoBlacklist()" title="제외된 곡 복원" style="font-size:0.7rem;">↺ 복원</button>
                     <button class="queue-btn" onclick="closeQueue()">✕</button>
                 </div>
             </div>
@@ -1697,9 +1696,8 @@
             renderQueueInline();
         }
 
-        function inlineQueueItemHTML(t, i, isManual) {
+        function inlineQueueItemHTML(t, i) {
             return `<div class="queue-item">
-                ${!isManual ? `<button class="drag-handle" onclick="addAutoToQueue(${i})" title="Play Next에 추가" style="cursor:pointer;">≡</button>` : ''}
                 <div class="track-thumb-wrap" style="width:32px;height:32px;flex-shrink:0;">
                     <img class="track-thumb" src="${t.thumbnail||''}" onerror="this.style.opacity=0" style="width:32px;height:32px;">
                 </div>
@@ -1707,41 +1705,32 @@
                     <div class="queue-item-title">${t.filename}</div>
                     <div class="queue-item-artist">${t.artist||'—'}</div>
                 </div>
-                ${isManual
-                    ? `<button class="queue-item-remove" onclick="removeFromQueue(${i})">✕</button>`
-                    : `<button class="queue-item-remove" onclick="skipAutoTrack(${t.id})" title="목록에서 제외">✕</button>`}
+                <button class="queue-item-remove" onclick="removeFromQueue(${i})">✕</button>
             </div>`;
         }
 
         function renderQueueInline() {
             const list = document.getElementById('np-queue-inline-list');
             if (!list) return;
-            const upcoming = getUpcomingTracks(8);
-            let html = '';
-            if (playQueue.length) {
-                html += `<div style="padding:6px 10px 3px;font-size:0.65rem;color:#555;text-transform:uppercase;letter-spacing:1px;">Play Next</div>`;
-                html += playQueue.map((t, i) => inlineQueueItemHTML(t, i, true)).join('');
-                html += `<div style="margin:4px 0;border-top:1px solid #222;"></div>`;
-            }
-            const autoTracks = upcoming.slice(playQueue.length);
-            if (autoTracks.length) {
-                html += `<div style="padding:6px 10px 3px;font-size:0.65rem;color:#555;text-transform:uppercase;letter-spacing:1px;">자동 재생 예정</div>`;
-                html += autoTracks.map((t, i) => inlineQueueItemHTML(t, i, false)).join('');
-            }
+            let html = playQueue.map((t, i) => inlineQueueItemHTML(t, i)).join('');
             if (!html) html = '<div style="padding:20px;text-align:center;color:#444;font-size:0.82rem;">대기열 없음</div>';
             list.innerHTML = html;
         }
         function openQueue() {
+            // 자동 재생 예정을 모두 Play Next로 확정
+            const upcoming = getUpcomingTracks(20);
+            const alreadyIn = new Set(playQueue.map(f => f.id));
+            upcoming.forEach(t => { if (!alreadyIn.has(t.id)) playQueue.push(t); });
+            updateQueueBadge();
             renderQueue();
             document.getElementById('queue-panel').classList.add('open');
         }
         function closeQueue() { document.getElementById('queue-panel').classList.remove('open'); }
 
-        function queueItemHTML(t, i, isManual) {
-            const flatIdx = isManual ? i : playQueue.length + i;
+        function queueItemHTML(t, i) {
             const isPrefetched = !!prefetchCache[t.id];
-            return `<div class="queue-item" data-drag-i="${flatIdx}">
-                <button class="drag-handle" ontouchstart="startDrag(event,${flatIdx})" onmousedown="startDrag(event,${flatIdx})">≡</button>
+            return `<div class="queue-item" data-drag-i="${i}">
+                <button class="drag-handle" ontouchstart="startDrag(event,${i})" onmousedown="startDrag(event,${i})">≡</button>
                 <div class="track-thumb-wrap" style="width:36px;height:36px;flex-shrink:0;">
                     <img class="track-thumb" src="${t.thumbnail||''}" onerror="this.style.opacity=0" style="width:36px;height:36px;">
                 </div>
@@ -1749,32 +1738,15 @@
                     <div class="queue-item-title">${t.filename}${isPrefetched ? ' <span style="color:#4ade80;font-size:0.65rem;">●</span>' : ''}</div>
                     <div class="queue-item-artist">${t.artist||'—'}</div>
                 </div>
-                ${isManual
-                    ? `<button class="queue-item-remove" onclick="removeFromQueue(${i})">✕</button>`
-                    : `<div style="display:flex;gap:2px;">
-                        <button class="queue-item-remove" onclick="addAutoToQueue(${i})" title="Play Next에 고정" style="color:#555;font-size:0.75rem;">＋</button>
-                        <button class="queue-item-remove" onclick="skipAutoTrack(${t.id})" title="목록에서 제외">✕</button>
-                       </div>`}
+                <button class="queue-item-remove" onclick="removeFromQueue(${i})">✕</button>
             </div>`;
         }
 
         function renderQueue() {
             const list = document.getElementById('queue-list');
             const cnt = document.getElementById('queue-header-count');
-            const upcoming = getUpcomingTracks(8);
-            cnt.innerText = playQueue.length ? `(수동 ${playQueue.length}곡)` : '';
-
-            let html = '';
-            if (playQueue.length) {
-                html += `<div style="padding:8px 10px 4px;font-size:0.7rem;color:#666;text-transform:uppercase;letter-spacing:1px;">Play Next</div>`;
-                html += playQueue.map((t, i) => queueItemHTML(t, i, true)).join('');
-                html += `<div style="margin:6px 0;border-top:1px solid #222;"></div>`;
-            }
-            const autoTracks = upcoming.slice(playQueue.length);
-            if (autoTracks.length) {
-                html += `<div style="padding:8px 10px 4px;font-size:0.7rem;color:#666;text-transform:uppercase;letter-spacing:1px;">자동 재생 예정</div>`;
-                html += autoTracks.map((t, i) => queueItemHTML(t, i, false)).join('');
-            }
+            cnt.innerText = playQueue.length ? `(${playQueue.length}곡)` : '';
+            let html = playQueue.map((t, i) => queueItemHTML(t, i)).join('');
             if (!html) html = '<div style="padding:24px;text-align:center;color:#444;font-size:0.85rem;">재생 목록이 없습니다.</div>';
             list.innerHTML = html;
             renderQueueInline();
@@ -1824,7 +1796,7 @@
             e.preventDefault();
             dragIdx = flatIdx;
             dragOverIdx = flatIdx;
-            dragIsAuto = flatIdx >= playQueue.length;
+            dragIsAuto = false;
             document.addEventListener('touchmove', onDragMove, { passive: false });
             document.addEventListener('touchend', onDragEnd);
             document.addEventListener('mousemove', onDragMove);
@@ -1862,28 +1834,11 @@
             document.removeEventListener('touchend', onDragEnd);
             document.removeEventListener('mousemove', onDragMove);
             document.removeEventListener('mouseup', onDragEnd);
-            if (dragIdx >= 0 && dragOverIdx !== dragIdx) {
-                if (dragIsAuto) {
-                    // 자동 항목 → Play Next로 승격
-                    const upcoming = getUpcomingTracks(8);
-                    const autoTracks = upcoming.slice(playQueue.length);
-                    const autoLocalIdx = dragIdx - playQueue.length;
-                    if (autoLocalIdx >= 0 && autoLocalIdx < autoTracks.length) {
-                        const item = autoTracks[autoLocalIdx];
-                        const targetPos = Math.min(dragOverIdx, playQueue.length);
-                        playQueue.splice(targetPos, 0, item);
-                        updateQueueBadge();
-                    }
-                } else {
-                    // 수동 항목 재정렬
-                    if (dragIdx < playQueue.length) {
-                        const clampedTarget = Math.min(dragOverIdx, playQueue.length);
-                        const targetPos = clampedTarget > dragIdx ? clampedTarget - 1 : clampedTarget;
-                        const [item] = playQueue.splice(dragIdx, 1);
-                        playQueue.splice(Math.min(targetPos, playQueue.length), 0, item);
-                        updateQueueBadge();
-                    }
-                }
+            if (dragIdx >= 0 && dragOverIdx !== dragIdx && dragIdx < playQueue.length) {
+                const targetPos = dragOverIdx > dragIdx ? dragOverIdx - 1 : dragOverIdx;
+                const [item] = playQueue.splice(dragIdx, 1);
+                playQueue.splice(Math.min(targetPos, playQueue.length), 0, item);
+                updateQueueBadge();
             }
             dragIdx = -1; dragOverIdx = -1; dragIsAuto = false;
             renderQueue();
