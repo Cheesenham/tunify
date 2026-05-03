@@ -1227,6 +1227,57 @@ def video_download():
     threading.Thread(target=_run, daemon=True).start()
     return jsonify({'success': True, 'job_id': job_id})
 
+# ─── 자막 굽기 (ffmpeg) ───────────────────────────────────────
+@app.route('/api/subtitle/burn', methods=['POST'])
+def subtitle_burn():
+    data = request.json or {}
+    uid   = data.get('uid', '')
+    path  = data.get('path', '')   # webhard 상대경로
+    vtt   = data.get('vtt', '')    # VTT 파일 내용
+    mode  = data.get('mode', 'replace')  # replace | new
+    if not uid or not path or not vtt:
+        return jsonify({'success': False, 'error': 'missing params'}), 400
+    if not _webhard_perm(uid):
+        return jsonify({'success': False, 'error': '권한 없음'}), 403
+    target = _safe_webhard_path(path)
+    if not target or not os.path.isfile(target):
+        return jsonify({'success': False, 'error': '파일 없음'}), 404
+    if not check_ffmpeg():
+        return jsonify({'success': False, 'error': 'ffmpeg 없음'}), 500
+
+    import tempfile, uuid as _uuid
+    tmp_dir = tempfile.mkdtemp()
+    sub_path = os.path.join(tmp_dir, 'sub.vtt')
+    out_name = os.path.splitext(os.path.basename(target))[0]
+    out_path = os.path.join(tmp_dir, out_name + '_sub.mp4')
+    try:
+        with open(sub_path, 'w', encoding='utf-8') as f:
+            f.write(vtt)
+        # ffmpeg: 자막 소프트 삽입 (스트림 복사 후 자막 트랙 추가)
+        cmd = ['ffmpeg', '-y', '-i', target,
+               '-i', sub_path,
+               '-c:v', 'copy', '-c:a', 'copy',
+               '-c:s', 'mov_text',
+               '-metadata:s:s:0', 'language=kor',
+               out_path]
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        if res.returncode != 0:
+            raise Exception(res.stderr.strip().split('\n')[-1][:300])
+        if mode == 'replace':
+            os.replace(out_path, target)
+            final = path
+        else:
+            new_name = out_name + '_sub.mp4'
+            new_target = os.path.join(os.path.dirname(target), new_name)
+            os.replace(out_path, new_target)
+            final = os.path.dirname(path).rstrip('/') + '/' + new_name
+        return jsonify({'success': True, 'path': final})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        import shutil as _sh
+        _sh.rmtree(tmp_dir, ignore_errors=True)
+
 # ─── 노래 공유 ────────────────────────────────────────────────
 import random, string
 share_codes = {}  # code -> {uid, file_id, expires}

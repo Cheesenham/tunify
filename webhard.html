@@ -308,6 +308,7 @@ function renderFiles(items) {
         <div class="file-date">${date}</div>
         <div class="file-actions">
           ${item.type==='file' && previewable ? `<button class="fa-btn" onclick="event.stopPropagation();openPreview('${esc(item.name)}','${esc(itemPath)}')" title="미리보기">👁</button>` : ''}
+          ${item.type==='file' && ext(item.name)==='mp4' ? `<button class="fa-btn" onclick="event.stopPropagation();openSubtitleEditor('${esc(itemPath)}','${esc(item.name)}')" title="자막 달기">💬</button>` : ''}
           ${item.type==='file' ? `<button class="fa-btn" onclick="event.stopPropagation();downloadFile('${esc(itemPath)}','${esc(item.name)}')" title="다운로드">⬇</button>` : ''}
           <button class="fa-btn" onclick="event.stopPropagation();openRename('${esc(itemPath)}','${esc(item.name)}')" title="이름 바꾸기">✏️</button>
           <button class="fa-btn del" onclick="event.stopPropagation();deleteItem('${esc(itemPath)}','${esc(item.name)}')" title="삭제">🗑</button>
@@ -460,6 +461,11 @@ async function confirmMkdir() {
 }
 
 // ── DOWNLOAD ─────────────────────────────────────────────────
+function openSubtitleEditor(path, name) {
+  const params = new URLSearchParams({ path, name });
+  window.location.href = '/subtitle.html?' + params.toString();
+}
+
 function downloadFile(path, name) {
   const a = document.createElement('a');
   a.href = `${PI_URL}/api/webhard/file?uid=${UID}&path=${encodeURIComponent(path)}&dl=1`;
